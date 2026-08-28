@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.7 (2026-08-29)
+
+### Fix: auto-memory runtime skill missing required `source`
+
+- `AUTO_MEMORY_SKILL` now declares `source: 'runtime'`. The DSH skill registry
+  (`dsh-skill`) validates loaded definitions and rejects runtime skills without
+  a string `source` (`loaded skill "auto-memory" source must be a string`).
+  Registration itself was lenient, so the skill appeared in the catalog and
+  only failed when actually loaded. After this fix, `skill("auto-memory")`
+  resolves normally.
+
 ## 0.2.6 (2026-08-18)
 
 ### Full configuration in the Web settings card
