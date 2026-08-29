@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
-当前版本：**0.2.5** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：**0.2.7** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
 
@@ -31,7 +31,7 @@ $DSH_HOME/memories/
 1. 将包复制到 profile 的外部插件目录：
 
    ```powershell
-   Copy-Item -Recurse E:\git\github\dsh-Plugin "$env:USERPROFILE\.dsh\profiles\web\node_modules\@dsh-external\dsh-memory"
+   Copy-Item -Recurse ...\dsh-memory "$env:USERPROFILE\.dsh\profiles\web\node_modules\@dsh-external\dsh-memory"
    ```
 
 2. 在 `~/.dsh/profiles/web/cordis.patch.yml` 中追加 loader 行（必须是 `insert` 条目——独立的 `- id:` 行只用于覆盖已存在的 bundle 条目，不会挂载新插件）：
@@ -46,6 +46,14 @@ $DSH_HOME/memories/
    ```
 
 3. 重启 DeepSeek Harness。插件以 `dsh-memory` 挂载，设置命名空间为 `memory`。
+
+或者，在任何平台（含 Linux/macOS）通过 DSH CLI 从 GitHub 安装——CLI 会自动挂载 bundle，无需手写 `cordis.patch.yml` 行：
+
+```bash
+dsh plugin --profile web add 'github:haitang1/dsh-memory#f3c8de4'
+```
+
+建议钉住 commit（`f3c8de4` 即 `v0.2.7` 发布提交）；省略 `#<sha>` 后缀则安装默认分支。安装后需重启 DeepSeek Harness。
 
 ## 配置
 
@@ -71,7 +79,7 @@ $DSH_HOME/memories/
 | `scopeMaxBytes` | `2400` | scopedMemory 开启时工作区摘要的注入字节预算。 |
 | `seedFromAgentsMd` | `true` | 是否用 `$DSH_HOME/AGENTS.md` 导入初始摘要。 |
 
-Web 设置页卡片（见下文）可在线编辑 `maxBytes`、`consolidateEvery`、`autoSummarize`、`seedFromAgentsMd`；其余键通过 loader 配置或 `settings.yaml` 的 `memory:` 段配置。
+Web 设置页卡片（见下文）可在线编辑**全部配置项**；各键亦可通过 loader 配置或 `settings.yaml` 的 `memory:` 段覆盖。
 
 ## 工具
 
@@ -147,7 +155,7 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 ## 开发与测试
 
-`npm test` 运行 59 项测试（node:test）：
+`npm test` 运行 60 项测试（node:test）：
 
 - `test/store.test.js` —— 存储语义、journal、历史、归档、作用域；
 - `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链、`extractMessageText`（user/assistant 事件结构）；

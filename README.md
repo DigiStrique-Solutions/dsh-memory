@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **Auto memory** — on each finished turn of a root agent, the new conversation text is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace or project scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
-Current release: **0.2.5** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
+Current release: **0.2.7** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Install
 
@@ -31,7 +31,7 @@ The one-command path is `scripts/sync-install.ps1` (see [Deploy / update](#deplo
 1. Put the package under the profile's external plugins:
 
    ```powershell
-   Copy-Item -Recurse E:\git\github\dsh-Plugin "$env:USERPROFILE\.dsh\profiles\web\node_modules\@dsh-external\dsh-memory"
+   Copy-Item -Recurse ...\dsh-memory "$env:USERPROFILE\.dsh\profiles\web\node_modules\@dsh-external\dsh-memory"
    ```
 
 2. Add a loader row to `~/.dsh/profiles/web/cordis.patch.yml` (must be an `insert` entry — a standalone `- id:` row only overrides existing bundle entries and will not mount the plugin):
@@ -46,6 +46,14 @@ The one-command path is `scripts/sync-install.ps1` (see [Deploy / update](#deplo
    ```
 
 3. Restart DeepSeek Harness. The plugin mounts as `dsh-memory`; its settings namespace is `memory`.
+
+Alternatively, from GitHub on any platform (Linux/macOS included), install through the DSH CLI — it mounts the bundle automatically, no manual `cordis.patch.yml` row needed:
+
+```bash
+dsh plugin --profile web add 'github:haitang1/dsh-memory#f3c8de4'
+```
+
+Pinning a commit is recommended (`f3c8de4` is the `v0.2.7` release commit); omitting the `#<sha>` suffix installs the default branch. Restart DeepSeek Harness afterwards.
 
 ## Configuration
 
@@ -71,7 +79,7 @@ The one-command path is `scripts/sync-install.ps1` (see [Deploy / update](#deplo
 | `scopeMaxBytes` | `2400` | Injected byte budget for the workspace summary when scopedMemory is enabled. |
 | `seedFromAgentsMd` | `true` | Seed the first summary from `$DSH_HOME/AGENTS.md`. |
 
-The Web settings card (see below) edits `maxBytes`, `consolidateEvery`, `autoSummarize`, and `seedFromAgentsMd` live; all other keys are configured through the loader row or the `memory:` section of `settings.yaml`.
+The Web settings card (see below) edits every config field live; keys are likewise overridable through the loader row or the `memory:` section of `settings.yaml`.
 
 ## Tools
 
@@ -164,7 +172,7 @@ Tools accept a `scope` argument (`global` | `workspace` | `project`); the projec
 
 ## Development & testing
 
-`npm test` runs 59 tests (node:test):
+`npm test` runs 60 tests (node:test):
 
 - `test/store.test.js` — store semantics, journal, history, archiving, scopes;
 - `test/automation.test.js` — the auto-memory skill definition, the model-route fallback chain, and `extractMessageText` (user/assistant event shapes);
