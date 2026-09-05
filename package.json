@@ -1,6 +1,6 @@
 {
   "name": "@dsh-external/dsh-memory",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Codex-like persistent memory for DeepSeek Harness: auto-injected memory summary, raw memory tools, and per-session rollout summaries distilled into a bounded global memory file.",
   "keywords": [
     "deepseek",
@@ -59,15 +59,15 @@
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.0-rc.7",
-    "@deepseek-ai/dsh-llm": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-settings": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-llm": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-settings": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-tools": "^0.1.2-rc.1",
     "@deepseek-ai/schemastery": "^3.18.0"
   },
   "license": "MIT",
   "scripts": {
-    "test": "node --test test/store.test.js test/browser.test.js test/web-settings.test.js test/automation.test.js test/embedding.integration.test.js test/mcp.integration.test.js",
+    "test": "node --test test/store.test.js test/browser.test.js test/web-settings.test.js test/automation.test.js test/embedding.integration.test.js test/mcp.integration.test.js test/host-wiring.test.js",
     "check": "node scripts/check-release.mjs"
   }
 }

@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.2.8 (2026-09-05)
+
+### Compat: DSH 0.1.2-rc.1 (settingsNamespace helper removed) + released hardening
+
+- `dsh-settings@0.1.2-rc.1` removed the `settingsNamespace` helper export; the
+  `register()` API now takes the namespace string directly. The plugin called
+  `settings.register(settingsNamespace('memory'), …)`, which crashed the host
+  bundle on the 0.1.2-rc.1 line with `The requested module does not provide an
+  export named 'settingsNamespace'`. It now calls `settings.register('memory', …)`
+  and drops the unused import (also tracked as `beee3e9`).
+- Tighten `peerDependencies` to the verified harness line:
+  `@deepseek-ai/dsh-*` `^0.1.2-rc.1` and `@deepseek-ai/cordis` `^4.0.1`.
+  (Pre-1.0 DSH ships breaking minor bumps, so semver satisfaction alone does
+  not guarantee runtime compatibility — this makes the declared surface match
+  the harness the release was validated against.)
+- Add a host-wiring test suite (`test/host-wiring.test.js`): source-level guards
+  (bare-string settings namespace, the removed `settingsNamespace` helper absent,
+  full 14-tool surface, `agent/turn-stopping`, `systemPrompt.context`,
+  `AUTO_MEMORY_SKILL`) plus an `apply()` smoke driven through a fake cordis ctx
+  that asserts the namespace string, the 14 registered tools, the auto-memory
+  skill, the injection hook, and the settings route. The smoke imports the
+  harness packages, so in a zero-dependency CI it skips and the suite stays
+  green; where the harness is present it runs for real.
+- README/STATUS note the DSH 0.1.2-rc.1 compatibility. Suite is 63/63 when the
+  harness deps are present (the apply smoke is skipped otherwise).
+
 ## 0.2.7 (2026-08-29)
 
 ### Fix: auto-memory runtime skill missing required `source`

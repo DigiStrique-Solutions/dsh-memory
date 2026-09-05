@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **Auto memory** — on each finished turn of a root agent, the new conversation text is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace or project scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
-Current release: **0.2.7** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
+Current release: **0.2.8** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Install
 
@@ -134,7 +134,7 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 The plugin ships a Web client bundle that registers a "Memory (dsh-memory)" card on the plugin configuration page (Settings → Plugins → Plugin config) automatically — no extra step is required beyond the deploy sync. The card edits **every** config field (grouped into General / Auto-summarization & consolidation / Scopes / Security & embeddings) through the plugin's own same-origin endpoint (`/_dsh/memory/settings`, registered by the host half). The card copy is localized (English/Chinese) and follows DSH's language setting; `embeddingApiKey` is shown masked, and `memoryDir` changes require a DSH restart.
 
-Since DSH **0.1.0-rc.7**, `settings.plugin.item` is a keyed slot and the plugin configuration tab dispatches cards by **settings namespace**: the card registers with `key: 'memory'` (the plugin's own settings namespace). rc.7 also removed the hard-coded `WEB_SETTINGS_NAMESPACES` allowlist from `dsh-host-apiproxy` — the generic Web settings API serves every registered namespace, so the legacy `patch-web-settings.ps1` no longer applies.
+Since DSH **0.1.0-rc.7**, `settings.plugin.item` is a keyed slot and the plugin configuration tab dispatches cards by **settings namespace**: the card registers with `key: 'memory'` (the plugin's own settings namespace). rc.7 also removed the hard-coded `WEB_SETTINGS_NAMESPACES` allowlist from `dsh-host-apiproxy` — the generic Web settings API serves every registered namespace, so the legacy `patch-web-settings.ps1` no longer applies. This plugin is verified against DSH **0.1.2-rc.1** (the line that dropped the `settingsNamespace` helper and requires a bare-string settings namespace), and its `peerDependencies` are tightened to the `dsh-*` `^0.1.2-rc.1` / `cordis` `^4.0.1` line to match the harness it is validated against.
 
 ## Automatic memory & the auto-memory skill
 
@@ -172,14 +172,15 @@ Tools accept a `scope` argument (`global` | `workspace` | `project`); the projec
 
 ## Development & testing
 
-`npm test` runs 60 tests (node:test):
+`npm test` runs 63 tests (node:test):
 
 - `test/store.test.js` — store semantics, journal, history, archiving, scopes;
 - `test/automation.test.js` — the auto-memory skill definition, the model-route fallback chain, and `extractMessageText` (user/assistant event shapes);
 - `test/browser.test.js` — the interactive HTML browser snapshot rendering;
 - `test/web-settings.test.js` — the settings endpoint lifecycle (GET/POST, 403/409, body limits) plus a VM-sandbox load of the client bundle asserting the `settings.plugin.item` card registration;
 - `test/embedding.integration.test.js` — fake `/embeddings` server + local hashed vectors;
-- `test/mcp.integration.test.js` — real MCP child-process round-trips.
+- `test/mcp.integration.test.js` — real MCP child-process round-trips;
+- `test/host-wiring.test.js` — guards the harness-facing surface of `lib/index.js`: bare-string settings namespace, the removed `settingsNamespace` helper absent, the 14-tool list, `agent/turn-stopping`, the `systemPrompt.context` hook, the auto-memory skill, plus an `apply()` smoke through a fake cordis ctx (skipped in a zero-dependency CI).
 
 The architecture and mechanism notes live in [`docs/DESIGN.md`](docs/DESIGN.md); deployment status in [`docs/STATUS.md`](docs/STATUS.md).
 
