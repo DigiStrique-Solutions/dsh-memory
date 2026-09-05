@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.9 (2026-09-05)
+
+### Compat: DSH 0.1.2-rc.1 (Session.events → Surface layer) + turn distillation guard
+
+- DSH 0.1.2-rc.1 replaced `Session.events` with the Surface layer
+  (`snapshotEvents`/`deriveMessages`). `extractTurnText` called
+  `agent.session.events.entries()`, which threw
+  `Cannot read properties of undefined (reading entries)` on **every** turn
+  summarization (silently skipping auto-memory). It now reads
+  `agent.session.snapshotEvents(fromSeq)` and uses `event.seq` (also tracked
+  as `4251aa8`).
+- Add a host-wiring source guard (`test/host-wiring.test.js`): asserts
+  `snapshotEvents` is used and `session.events.entries()` is gone, so the next
+  Surface-layer drift fails in CI instead of at turn summarization. Suite is
+  64/64 when the harness deps are present (the apply smoke is skipped
+  otherwise).
+
 ## 0.2.8 (2026-09-05)
 
 ### Compat: DSH 0.1.2-rc.1 (settingsNamespace helper removed) + released hardening

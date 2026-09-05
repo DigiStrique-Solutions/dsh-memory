@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
-当前版本：**0.2.8** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：**0.2.9** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
 
@@ -134,7 +134,7 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 插件自带 Web 客户端 bundle，会自动在插件配置页（设置 → 插件 → 插件配置）注册「记忆 (dsh-memory)」卡片，无需额外步骤。卡片可编辑**全部配置项**（按 通用 / 自动摘要与合并 / 作用域 / 安全与嵌入 分组），通过插件自己的同源端点（`/_dsh/memory/settings`，由 host 半部分注册）读写配置。卡片文案为中英双语，跟随 DSH 的语言设置自动切换；`embeddingApiKey` 以掩码显示，`memoryDir` 更改需重启 DSH 生效。
 
-自 DSH **0.1.0-rc.7** 起：`settings.plugin.item` 改为 keyed 槽位，插件配置页按**设置命名空间**派发卡片 —— 卡片以 `key: 'memory'` 注册（即插件自己的设置命名空间）；同时 rc.7 移除了 `dsh-host-apiproxy` 的硬编码设置白名单（`WEB_SETTINGS_NAMESPACES`），通用 Web 设置 API 直接服务全部已注册命名空间，因此旧版 `patch-web-settings.ps1` 已不适用。本插件已针对 DSH **0.1.2-rc.1** 验证（该版本移除了 `settingsNamespace` 辅助导出，设置命名空间改为裸字符串），并将 `peerDependencies` 收紧到 `dsh-*` `^0.1.2-rc.1` / `cordis` `^4.0.1`，以与实际验证过的 harness 对齐。
+自 DSH **0.1.0-rc.7** 起：`settings.plugin.item` 改为 keyed 槽位，插件配置页按**设置命名空间**派发卡片 —— 卡片以 `key: 'memory'` 注册（即插件自己的设置命名空间）；同时 rc.7 移除了 `dsh-host-apiproxy` 的硬编码设置白名单（`WEB_SETTINGS_NAMESPACES`），通用 Web 设置 API 直接服务全部已注册命名空间，因此旧版 `patch-web-settings.ps1` 已不适用。本插件已针对 DSH **0.1.2-rc.1** 验证（该版本移除了 `settingsNamespace` 辅助导出、设置命名空间改为裸字符串，并用 Surface 层 `snapshotEvents`/`deriveMessages` 替换了 `Session.events`），并将 `peerDependencies` 收紧到 `dsh-*` `^0.1.2-rc.1` / `cordis` `^4.0.1`，以与实际验证过的 harness 对齐。
 
 ## 自动记忆与 auto-memory 技能
 
@@ -155,7 +155,7 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 ## 开发与测试
 
-`npm test` 运行 63 项测试（node:test）：
+`npm test` 运行 64 项测试（node:test）：
 
 - `test/store.test.js` —— 存储语义、journal、历史、归档、作用域；
 - `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链、`extractMessageText`（user/assistant 事件结构）；
@@ -163,7 +163,7 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 - `test/web-settings.test.js` —— 设置端点生命周期（GET/POST、403/409、体积限制），以及 VM 沙箱加载客户端 bundle 断言 `settings.plugin.item` 卡片注册；
 - `test/embedding.integration.test.js` —— fake `/embeddings` 服务 + 本地哈希向量；
 - `test/mcp.integration.test.js` —— 真实 MCP 子进程往返；
-- `test/host-wiring.test.js` —— 守卫 `lib/index.js` 的宿主对接面：裸字符串设置命名空间、`settingsNamespace` 辅助导出缺失、14 个工具清单、`agent/turn-stopping`、`systemPrompt.context` 钩子、auto-memory 技能，以及经 fake cordis ctx 的 `apply()` 冒烟（零依赖 CI 中跳过）。
+- `test/host-wiring.test.js` —— 守卫 `lib/index.js` 的宿主对接面：裸字符串设置命名空间、`settingsNamespace` 辅助导出缺失、Surface 层 `snapshotEvents`（而非 `Session.events`）、14 个工具清单、`agent/turn-stopping`、`systemPrompt.context` 钩子、auto-memory 技能，以及经 fake cordis ctx 的 `apply()` 冒烟（零依赖 CI 中跳过）。
 
 架构与机制说明见 [`docs/DESIGN.md`](docs/DESIGN.md)；部署状态见 [`docs/STATUS.md`](docs/STATUS.md)。
 

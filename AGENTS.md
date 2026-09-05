@@ -5,7 +5,7 @@
 ## 1. 项目概览
 
 - **定位**：DeepSeek Harness（DSH）的类 Codex 持久记忆插件——全局摘要注入每次提示词、14 个 `memory_*` 工具读写、每轮自动蒸馏、定期合并、版本化回滚；另附独立 stdio MCP server 与 Web 设置卡片。
-- **当前版本**：0.2.8（MIT，ESM，`engines: node >= 20.3`）。
+- **当前版本**：0.2.9（MIT，ESM，`engines: node >= 20.3`）。
 - **零运行时第三方依赖**：`dependencies` 为空，只有 `peerDependencies`（见红线 3）。仓库无 lockfile、无构建步骤、无 lint/typecheck——保持可读可跑，防漂移靠 `npm run check`。
 
 ## 2. 架构与模块地图
@@ -66,9 +66,9 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 
 ## 6. 测试体系
 
-- `npm test` = **63 项**（node:test，约 0.3s）：`store`（存储语义/journal/历史/归档/作用域）、`automation`（技能定义/路由回退链/事件文本提取）、`browser`（HTML 快照）、`web-settings`（端点生命周期 + VM 沙箱卡片注册）、`embedding.integration`（fake `/embeddings` + 本地向量）、`mcp.integration`（真实子进程往返）、`host-wiring`（见下）。
+- `npm test` = **64 项**（node:test，约 0.3s）：`store`（存储语义/journal/历史/归档/作用域）、`automation`（技能定义/路由回退链/事件文本提取）、`browser`（HTML 快照）、`web-settings`（端点生命周期 + VM 沙箱卡片注册）、`embedding.integration`（fake `/embeddings` + 本地向量）、`mcp.integration`（真实子进程往返）、`host-wiring`（见下）。
 - **零依赖原则**：CI（`.github/workflows/ci.yml`，node 20/22，push main + PR）**不 install**，直接 `npm run check && npm test`。任何测试新增对第三方包的硬依赖都会让 CI 崩。
-- `test/host-wiring.test.js`：①源码守卫——`settings.register('memory'…` 存在、`settingsNamespace` 不存在、14 工具名齐全、`agent/turn-stopping`/`systemPrompt.context`/`AUTO_MEMORY_SKILL` 存在；②fake-ctx `apply()` 冒烟——断言裸字符串命名空间、14 工具注册、技能、注入钩子、settings 路由。**当 harness 包不可解析时必须 `t.skip()` 而非报错**（CI 情形），且**不能改变 `# tests` 计数**（check-release 依赖该计数）。
+- `test/host-wiring.test.js`：①源码守卫——`settings.register('memory'…` 存在、`settingsNamespace` 不存在、`snapshotEvents` 存在且 `session.events.entries()` 不存在、14 工具名齐全、`agent/turn-stopping`/`systemPrompt.context`/`AUTO_MEMORY_SKILL` 存在；②fake-ctx `apply()` 冒烟——断言裸字符串命名空间、14 工具注册、技能、注入钩子、settings 路由。**当 harness 包不可解析时必须 `t.skip()` 而非报错**（CI 情形），且**不能改变 `# tests` 计数**（check-release 依赖该计数）。
 - `npm run check`（`scripts/check-release.mjs`）契约：`package.json.version` == CHANGELOG 最新 `## <ver>` == README 两语版本行（`Current release: **X**` / `当前版本：**X**`）；README 声明的测试数（`runs N tests` / `运行 N 项测试`）== 实际 `node --test` 的 `# tests N`。**这些措辞是解析契约，改动措辞必须同步改脚本。**
 
 ## 7. 发布流程（0.2.8 起的标准动作）
@@ -79,7 +79,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 4. `npm run check` + `npm test` 全绿；
 5. `git commit`（信息含 release: vX.Y.Z 摘要）→ `git tag -a v<ver> -m <摘要>` → `git push origin main` + 推送标签。
 - 版本号/测试数/工具数任何一处与 README 不一致，`npm run check` 会红——这是特性，不是烦恼。
-- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8（更早版本未补标签）。
+- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9（更早版本未补标签）。
 
 ## 8. 部署（现状）
 
@@ -95,7 +95,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 | --- | --- | --- |
 | 0.2.7 | `AUTO_MEMORY_SKILL` 缺 `source`，技能目录可见但加载报错 | 补 `source:'runtime'` |
 | 0.2.8 | DSH 0.1.2-rc.1 移除 `settingsNamespace`，宿主加载崩溃 | 改 `settings.register('memory',…)` + 收紧 peers + 新增 host-wiring 测试 |
-| 0.1.2-rc.1 | `Session.events` 被 Surface 层替换（`snapshotEvents`/`deriveMessages`），`extractTurnText` 的 `.entries()` 在每次轮次摘要时抛 `Cannot read properties of undefined (reading entries)` | 迁移到 `agent.session.snapshotEvents(fromSeq)`（`4251aa8`，未发布） |
+| 0.1.2-rc.1 | `Session.events` 被 Surface 层替换（`snapshotEvents`/`deriveMessages`），`extractTurnText` 的 `.entries()` 在每次轮次摘要时抛 `Cannot read properties of undefined (reading entries)` | 迁移到 `agent.session.snapshotEvents(fromSeq)`（v0.2.9） |
 | 常态 | DSH pre-1.0，同一 `^0.1.x` 范围内 API 可破 | 升级前验证；用 host-wiring 守卫兜底 |
 
 **维护提示**：本文件是与代码平行的文档，改版本/工具数/CI/部署方式时同步更新；若与仓库不一致，以 package.json / lib / README / CHANGELOG 为准（并修本文件）。
