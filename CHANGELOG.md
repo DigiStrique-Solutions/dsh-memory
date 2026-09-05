@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.10 (2026-09-05)
+
+### Fix: wait for the llm service so automatic summarization actually runs
+
+- The plugin captured `ctx.get('llm')` once at apply() time. On DSH 0.1.2-rc.1
+  that returns undefined, and `scheduleSummarize` then skips every turn with
+  reason `disabled` (silently — no error, no rollout, no consolidation; the
+  injected summary never advances). Verified on the live deployment: live
+  config shows `autoSummarize: true` while `memory_stats` reports `llm calls: 0`
+  and `skips {"disabled":1}`.
+- Acquire the service via `ctx.inject(['llm'], …)` instead, matching how the
+  tools/skills registrations already wait for their services. Summary of the
+  fix: a mutable `llm` holder filled by the inject callback.
+- Add a host-wiring source guard: `inject(['llm'])` present, and no
+  boot-time `const llm = ctx.get('llm')`. Suite is 65/65 when the harness deps
+  are present (the apply smoke is skipped otherwise).
+
 ## 0.2.9 (2026-09-05)
 
 ### Compat: DSH 0.1.2-rc.1 (Session.events → Surface layer) + turn distillation guard

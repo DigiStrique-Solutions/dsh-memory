@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
-当前版本：**0.2.9** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：**0.2.10** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
 
@@ -155,7 +155,7 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 ## 开发与测试
 
-`npm test` 运行 64 项测试（node:test）：
+`npm test` 运行 65 项测试（node:test）：
 
 - `test/store.test.js` —— 存储语义、journal、历史、归档、作用域；
 - `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链、`extractMessageText`（user/assistant 事件结构）；
@@ -163,7 +163,7 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 - `test/web-settings.test.js` —— 设置端点生命周期（GET/POST、403/409、体积限制），以及 VM 沙箱加载客户端 bundle 断言 `settings.plugin.item` 卡片注册；
 - `test/embedding.integration.test.js` —— fake `/embeddings` 服务 + 本地哈希向量；
 - `test/mcp.integration.test.js` —— 真实 MCP 子进程往返；
-- `test/host-wiring.test.js` —— 守卫 `lib/index.js` 的宿主对接面：裸字符串设置命名空间、`settingsNamespace` 辅助导出缺失、Surface 层 `snapshotEvents`（而非 `Session.events`）、14 个工具清单、`agent/turn-stopping`、`systemPrompt.context` 钩子、auto-memory 技能，以及经 fake cordis ctx 的 `apply()` 冒烟（零依赖 CI 中跳过）。
+- `test/host-wiring.test.js` —— 守卫 `lib/index.js` 的宿主对接面：裸字符串设置命名空间、`settingsNamespace` 辅助导出缺失、Surface 层 `snapshotEvents`（而非 `Session.events`）、`llm` 服务经 `inject(['llm'])` 等待（而非启动时 `ctx.get`）、14 个工具清单、`agent/turn-stopping`、`systemPrompt.context` 钩子、auto-memory 技能，以及经 fake cordis ctx 的 `apply()` 冒烟（零依赖 CI 中跳过）。
 
 架构与机制说明见 [`docs/DESIGN.md`](docs/DESIGN.md)；部署状态见 [`docs/STATUS.md`](docs/STATUS.md)。
 

@@ -2,11 +2,12 @@
 
 ## 当前状态（2026-09-05）
 
-- 最新版本：**0.2.9**（main），64/64 自动化测试全绿（默认跑，harness 依赖存在时含 `apply()` 冒烟；零依赖 CI 中该冒烟跳过）。`npm run check` 通过。
+- 最新版本：**0.2.10**（main），65/65 自动化测试全绿（默认跑，harness 依赖存在时含 `apply()` 冒烟；零依赖 CI 中该冒烟跳过）。`npm run check` 通过。
+- 0.2.10 修复：`llm` 服务改为经 `ctx.inject(['llm'],…)` 等待，而非启动时 `ctx.get('llm')`（DSH 0.1.2-rc.1 下后者返回 undefined，自动摘要静默跳过：`llm calls: 0`、`skips {"disabled":1}`、摘要永不更新）；新增 host-wiring llm 守卫。
 - 0.2.9 修复：适配 DSH **0.1.2-rc.1** 的 Surface 层 —— `Session.events` 被 `snapshotEvents`/`deriveMessages` 替换，`extractTurnText` 改为 `agent.session.snapshotEvents(fromSeq)`（此前每次轮次摘要都抛 `Cannot read properties of undefined (reading entries)`）；新增 host-wiring Surface 守卫。
 - 0.2.8 修复：适配 DSH **0.1.2-rc.1** —— 该版 `dsh-settings` 移除了 `settingsNamespace` 辅助导出，`settings.register` 改为接受裸字符串命名空间；插件改用 `settings.register('memory', …)`，并将 peerDependencies 收紧到 `dsh-*` `^0.1.2-rc.1` / `cordis` `^4.0.1`。
 - 0.2.7 修复：`auto-memory` 运行时技能补 `source: 'runtime'`（此前技能出现在目录但加载报错）。
-- 另：新增 `.github/workflows/ci.yml`（node 20/22，零依赖直跑）、`scripts/check-release.mjs`（`npm run check` 防版本/测试数漂移）、`test/host-wiring.test.js`；标签 v0.2.5–v0.2.9。
+- 另：新增 `.github/workflows/ci.yml`（node 20/22，零依赖直跑）、`scripts/check-release.mjs`（`npm run check` 防版本/测试数漂移）、`test/host-wiring.test.js`；标签 v0.2.5–v0.2.10。
 - 以下为 2026-08-15 的部署历史快照；此后的进展见 [CHANGELOG.md](../CHANGELOG.md)，当前发布形态以 README 安装章节为准。
 
 ## 历史快照（2026-08-15）

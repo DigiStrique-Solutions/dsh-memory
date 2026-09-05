@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **Auto memory** — on each finished turn of a root agent, the new conversation text is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace or project scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
-Current release: **0.2.9** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
+Current release: **0.2.10** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Install
 
@@ -172,7 +172,7 @@ Tools accept a `scope` argument (`global` | `workspace` | `project`); the projec
 
 ## Development & testing
 
-`npm test` runs 64 tests (node:test):
+`npm test` runs 65 tests (node:test):
 
 - `test/store.test.js` — store semantics, journal, history, archiving, scopes;
 - `test/automation.test.js` — the auto-memory skill definition, the model-route fallback chain, and `extractMessageText` (user/assistant event shapes);
@@ -180,7 +180,7 @@ Tools accept a `scope` argument (`global` | `workspace` | `project`); the projec
 - `test/web-settings.test.js` — the settings endpoint lifecycle (GET/POST, 403/409, body limits) plus a VM-sandbox load of the client bundle asserting the `settings.plugin.item` card registration;
 - `test/embedding.integration.test.js` — fake `/embeddings` server + local hashed vectors;
 - `test/mcp.integration.test.js` — real MCP child-process round-trips;
-- `test/host-wiring.test.js` — guards the harness-facing surface of `lib/index.js`: bare-string settings namespace, the removed `settingsNamespace` helper absent, the Surface layer (`snapshotEvents`) instead of `Session.events`, the 14-tool list, `agent/turn-stopping`, the `systemPrompt.context` hook, the auto-memory skill, plus an `apply()` smoke through a fake cordis ctx (skipped in a zero-dependency CI).
+- `test/host-wiring.test.js` — guards the harness-facing surface of `lib/index.js`: bare-string settings namespace, the removed `settingsNamespace` helper absent, the Surface layer (`snapshotEvents`) instead of `Session.events`, the `llm` service waited for via `inject(['llm'])` instead of a boot-time `ctx.get`, the 14-tool list, `agent/turn-stopping`, the `systemPrompt.context` hook, the auto-memory skill, plus an `apply()` smoke through a fake cordis ctx (skipped in a zero-dependency CI).
 
 The architecture and mechanism notes live in [`docs/DESIGN.md`](docs/DESIGN.md); deployment status in [`docs/STATUS.md`](docs/STATUS.md).
 

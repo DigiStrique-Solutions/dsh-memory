@@ -43,6 +43,14 @@ test('host wiring: reads session events through the Surface layer', async () => 
     'must not call session.events.entries() (removed in DSH 0.1.2-rc.1; throws on every turn summarization)')
 })
 
+test('host wiring: waits for the llm service via inject instead of a boot-time ctx.get', async () => {
+  const source = await readFile(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.match(source, /inject\(\['llm'\]/,
+    'must wait for the llm service (ctx.get("llm") is undefined at boot on DSH 0.1.2-rc.1, silently disabling auto-summarization)')
+  assert.doesNotMatch(source, /const llm = ctx\.get\('llm'\)/,
+    'must not capture llm once at boot; wait for the injected service')
+})
+
 // apply() smoke: drives the real plugin entry through a fake cordis ctx and
 // asserts the host wiring actually registers everything. Imports the harness
 // packages (dsh-llm / dsh-tools) transitively, so it only runs where they are
