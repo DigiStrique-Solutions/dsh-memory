@@ -5,7 +5,7 @@
 ## 1. 项目概览
 
 - **定位**：DeepSeek Harness（DSH）的类 Codex 持久记忆插件——全局摘要注入每次提示词、14 个 `memory_*` 工具读写、每轮自动蒸馏、定期合并、版本化回滚；另附独立 stdio MCP server 与 Web 设置卡片。
-- **当前版本**：0.2.10（MIT，ESM，`engines: node >= 20.3`）。
+- **当前版本**：0.2.11（MIT，ESM，`engines: node >= 20.3`）。
 - **零运行时第三方依赖**：`dependencies` 为空，只有 `peerDependencies`（见红线 3）。仓库无 lockfile、无构建步骤、无 lint/typecheck——保持可读可跑，防漂移靠 `npm run check`。
 
 ## 2. 架构与模块地图
@@ -79,7 +79,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 4. `npm run check` + `npm test` 全绿；
 5. `git commit`（信息含 release: vX.Y.Z 摘要）→ `git tag -a v<ver> -m <摘要>` → `git push origin main` + 推送标签。
 - 版本号/测试数/工具数任何一处与 README 不一致，`npm run check` 会红——这是特性，不是烦恼。
-- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9 / v0.2.10（更早版本未补标签）。
+- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9 / v0.2.10 / v0.2.11（更早版本未补标签）。
 
 ## 8. 部署（现状）
 
@@ -97,6 +97,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 | 0.2.8 | DSH 0.1.2-rc.1 移除 `settingsNamespace`，宿主加载崩溃 | 改 `settings.register('memory',…)` + 收紧 peers + 新增 host-wiring 测试 |
 | 0.1.2-rc.1 | `Session.events` 被 Surface 层替换（`snapshotEvents`/`deriveMessages`），`extractTurnText` 的 `.entries()` 在每次轮次摘要时抛 `Cannot read properties of undefined (reading entries)` | 迁移到 `agent.session.snapshotEvents(fromSeq)`（v0.2.9） |
 | 0.1.2-rc.1 | 启动时 `ctx.get('llm')` 返回 undefined，自动摘要静默跳过（`skips {"disabled":1}`、`llm calls: 0`、摘要永不更新） | 用 `ctx.inject(['llm'],…)` 等待服务（v0.2.10） |
+| 调优 | `consolidateMaxTokens` 默认 3000 装不下 ~8KB 有界摘要的输出，合并报 `LLM output reached max tokens`、摘要停更 | 默认提到 8192（schema 上限 16384；v0.2.11） |
 | 常态 | DSH pre-1.0，同一 `^0.1.x` 范围内 API 可破 | 升级前验证；用 host-wiring 守卫兜底 |
 
 **维护提示**：本文件是与代码平行的文档，改版本/工具数/CI/部署方式时同步更新；若与仓库不一致，以 package.json / lib / README / CHANGELOG 为准（并修本文件）。

@@ -30,7 +30,7 @@ export interface MemoryConfig {
   consolidateEvery?: number
   /** Maximum output tokens for turn summarization (default 1500). */
   summaryMaxTokens?: number
-  /** Maximum output tokens for summary consolidation (default 3000). */
+  /** Maximum output tokens for summary consolidation (default 8192). */
   consolidateMaxTokens?: number
   /** Retries after a transient LLM failure (default 1). */
   llmRetries?: number

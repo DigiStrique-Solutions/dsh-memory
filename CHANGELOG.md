@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.11 (2026-09-05)
+
+### Fix: raise consolidateMaxTokens so consolidation fits the summary
+
+- With auto-summarization restored (0.2.10), the consolidation step surfaced a
+  second default-cap issue: `consolidateMaxTokens` default 3000 is too small to
+  emit the merged summary for a ~8 KB bounded memory file (~4-6 K tokens of
+  Chinese text), so the merge LLM failed with `LLM output reached max tokens`
+  and the summary never advanced (verified live: distill wrote a rollout, then
+  consolidation errored).
+- Raise the default to **8192** (schema max 16384; the default model's output
+  cap is 256 K, so this is comfortable headroom). Docs/types synced.
+
 ## 0.2.10 (2026-09-05)
 
 ### Fix: wait for the llm service so automatic summarization actually runs

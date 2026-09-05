@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
-当前版本：**0.2.10** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：**0.2.11** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
 
@@ -69,7 +69,7 @@ dsh plugin --profile web add 'github:haitang1/dsh-memory#f3c8de4'
 | `summarizeDebounceMs` | `300000` | 同一会话两次蒸馏的最小间隔（0 = 关闭防抖）。 |
 | `consolidateEvery` | `3` | 累计多少份 rollout 摘要后重新合并全局摘要。 |
 | `summaryMaxTokens` | `1500` | 单轮摘要 LLM 的最大输出 token。 |
-| `consolidateMaxTokens` | `3000` | 摘要合并 LLM 的最大输出 token。 |
+| `consolidateMaxTokens` | `8192` | 摘要合并 LLM 的最大输出 token。 |
 | `llmRetries` | `1` | LLM 瞬时失败后的重试次数。 |
 | `maxActiveSummaries` | `4` | 同时进行的轮次摘要上限，超出后丢弃新任务。 |
 | `scopedMemory` | `false` | 开启按工作区隔离的记忆作用域。 |

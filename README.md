@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **Auto memory** — on each finished turn of a root agent, the new conversation text is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace or project scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
-Current release: **0.2.10** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
+Current release: **0.2.11** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Install
 
@@ -69,7 +69,7 @@ Pinning a commit is recommended (`f3c8de4` is the `v0.2.7` release commit); omit
 | `summarizeDebounceMs` | `300000` | Minimum interval between summarizations of the same session (0 disables the debounce). |
 | `consolidateEvery` | `3` | Rollout summaries written before re-consolidating the global summary. |
 | `summaryMaxTokens` | `1500` | Max output tokens for turn summarization. |
-| `consolidateMaxTokens` | `3000` | Max output tokens for summary consolidation. |
+| `consolidateMaxTokens` | `8192` | Max output tokens for summary consolidation. |
 | `llmRetries` | `1` | Retries after a transient LLM failure. |
 | `maxActiveSummaries` | `4` | Maximum concurrent turn summarizations before new jobs are dropped. |
 | `scopedMemory` | `false` | Enable per-workspace memory scopes. |
