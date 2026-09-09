@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0-internal.1 (2026-09-09)
+
+DigiStrique internal fork: structured scoped storage with replay/CAS/revocation; authenticated local review; durable evidence and bounded learning jobs; exact-hash procedure admission, resources, pin/archive/rollback; stock DSH provider integration; evaluation-gated optional autonomy; additive migration previews and separate-store MCP. Old Markdown authority, shared-writer MCP, raw API-key settings, remote embeddings and arbitrary model filesystem exports are removed. Targets DSH 0.1.5-alpha.1. No npm publication or everyday-profile activation.
+
+
 ## 0.2.11 (2026-09-05)
 
 ### Fix: raise consolidateMaxTokens so consolidation fits the summary

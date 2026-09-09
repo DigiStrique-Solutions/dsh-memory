@@ -1,3 +1,5 @@
+> Historical upstream document. It does not describe the Strique fork. See [current operations](OPERATIONS.md) and [implementation plan](IMPLEMENTATION_PLAN.md).
+
 # dsh-memory 设计文档
 
 ## 目标
