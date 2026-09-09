@@ -30,7 +30,7 @@ Run the configured harness with `qa-browser run dsh-memory-isolated local smoke 
 
 - No live-provider learning-gain experiment was run. The implementation cannot yet claim better held-out task performance. Unattended publication remains disabled. The operator must supply and review the required live report before enabling it.
 - The pinned Harness Settings shell clips content at 720px. Desktop widths 1000px and 1440px are verified; mobile usability is not a passed release gate. Chinese labels are implemented, but a separate Chinese browser pass has not been performed.
-- CI is configured for Node 22, 24 and 26 on Linux. Treat it as pending until the actual GitHub run completes; local results alone prove only Node 26 on macOS.
+- Linux CI passed on Node 22, 24 and 26 for implementation commit `f335d6c`: [run 34350272350](https://github.com/DigiStrique-Solutions/dsh-memory/actions/runs/34350272350). Each job ran clean installation, release checks and deterministic evaluation. Local assembled browser tests ran on Node 26/macOS.
 - Procedure resources are immutable JSON content delivered inside the reviewed skill body, not a materialized executable directory. The ordinary tool policy still governs execution.
 - This is a single trusted OS-account/Host-owner design. It is not organization-wide multi-tenant memory. Secret detection is heuristic, and privileged sibling plugins remain within the Host trust boundary.
 - Daily model reservations are per scope. Canceling an uncooperative remote provider prevents late commits but cannot guarantee that the provider stops charging. Separate MCP mode has lifecycle cancellation, not per-request cancellation notifications.
