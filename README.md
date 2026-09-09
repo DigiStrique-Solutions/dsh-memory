@@ -1,5 +1,12 @@
 # dsh-memory
 
+> **DigiStrique fork:** runtime code currently matches upstream 0.2.11. The
+> [implementation plan](docs/IMPLEMENTATION_PLAN.md),
+> [security and correctness audit](docs/audit/2026-09-09.md), and
+> [learning-system research](docs/research/2026-09-09-learning.md) describe the
+> proposed hardening and procedural learning work. These features and fixes
+> are not implemented or deployed yet. The documentation below is upstream's.
+
 Codex-like persistent memory for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). The plugin gives every session a durable, auto-injected memory: a distilled global summary is injected into each prompt, agents can read/write/search memories with dedicated tools, and each finished turn is automatically distilled into per-session rollout summaries that periodically re-consolidate the global memory file.
 
 ## How it works
