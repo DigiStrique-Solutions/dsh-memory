@@ -1,362 +1,198 @@
 #!/usr/bin/env node
-// Standalone MCP stdio server for dsh-memory.
-//
-// It reuses lib/store.js only (no DeepSeek Harness runtime), so it can be
-// attached to any MCP client (Codex/Claude/etc.) that can spawn:
-//   node E:/git/github/dsh-Plugin/bin/dsh-memory-mcp.mjs
-//
-// Environment:
-//   DSH_MEMORY_DIR          memory root (default ~/.dsh/memories)
-//   DSH_MEMORY_REDACT       reject/redact credential-looking content (default 1)
-//
-// Tools carry an optional `scope` argument. `global` (default) uses the root
-// store; `workspace`/`project` use `cwd` to derive ws-/project- keys.
-import { createInterface } from 'node:readline'
+import { resolve, join } from 'node:path'
+import { once } from 'node:events'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
-import {
-  MemoryStore,
-  RAW_FILE,
-  SUMMARY_FILE,
-  DEFAULT_MAX_CONTENT_BYTES,
-  detectSecrets,
-  findGitRoot,
-  findNearDuplicateGroups,
-  normalizeScopeArg,
-  normalizeTags,
-  projectScopeKey,
-  scopeKeyForCwd,
-  scopedStoreDir,
-  searchEntries,
-  serializeRaw,
-  summaryVersion,
-  validateContent
-} from '../lib/store.js'
+import { FileBackend, Objects, acquireOwner } from '../lib/files.js'
+import { MemoryStore } from '../lib/store.js'
+import { project, errorResult, fail, safe } from '../lib/policy.js'
 
-const rootDir = process.env.DSH_MEMORY_DIR && process.env.DSH_MEMORY_DIR.trim().length > 0
-  ? process.env.DSH_MEMORY_DIR.trim()
-  : join(homedir(), '.dsh', 'memories')
-const redact = process.env.DSH_MEMORY_REDACT !== '0'
-const embedding = process.env.DSH_MEMORY_EMBEDDING_BASEURL && process.env.DSH_MEMORY_EMBEDDING_MODEL
-  ? {
-      baseURL: process.env.DSH_MEMORY_EMBEDDING_BASEURL.trim(),
-      apiKey: process.env.DSH_MEMORY_EMBEDDING_API_KEY || '',
-      model: process.env.DSH_MEMORY_EMBEDDING_MODEL.trim()
-    }
-  : undefined
-const root = new MemoryStore(rootDir)
-const stores = new Map()
-
-function storeForScope(key) {
-  if (key === 'global') return root
-  let store = stores.get(key)
-  if (store === undefined) {
-    store = new MemoryStore(scopedStoreDir(rootDir, key))
-    stores.set(key, store)
-  }
-  return store
+// This adapter deliberately cannot open the Host's store or approve procedures.
+if (
+  process.env.DSH_MEMORY_MODE !== 'separate' ||
+  !process.env.DSH_MEMORY_DIR ||
+  !process.env.DSH_MEMORY_PROJECT
+) {
+  process.stderr.write(
+    'Set DSH_MEMORY_MODE=separate, DSH_MEMORY_DIR, and DSH_MEMORY_PROJECT. Host store sharing is unsupported.\n'
+  )
+  process.exit(1)
 }
-
-async function route(args = {}) {
-  const scope = normalizeScopeArg(args.scope)
-  if (scope === 'workspace') {
-    const cwd = String(args.cwd ?? '').trim()
-    if (cwd.length === 0) throw new Error("memory: 'workspace' scope requires cwd")
-    const key = scopeKeyForCwd(cwd)
-    return { key, store: storeForScope(key) }
+const root = resolve(process.env.DSH_MEMORY_DIR),
+  hostRoot = resolve(process.env.DSH_HOME || join(homedir(), '.dsh'), 'strique-memory-v1')
+if (root === hostRoot || root.startsWith(hostRoot + '/'))
+  throw new Error('MCP must use a separate store')
+const release = await acquireOwner(root)
+const backend = new FileBackend(root)
+const objects = new Objects(root)
+const controller = new AbortController()
+let store, caller
+try {
+  await backend.init()
+  await objects.init()
+  store = new MemoryStore(backend, objects, {
+    policy: { capture: false, publish: false, export: false, remoteEgress: false }
+  })
+  const scope = project(process.env.DSH_MEMORY_PROJECT)
+  caller = {
+    principal: 'owner',
+    kind: 'agent',
+    scope: scope.key,
+    root: scope.root,
+    session: 'mcp',
+    signal: controller.signal
   }
-  if (scope === 'project') {
-    const cwd = String(args.cwd ?? '').trim()
-    if (cwd.length === 0) throw new Error("memory: 'project' scope requires cwd")
-    const gitRoot = await findGitRoot(cwd)
-    if (gitRoot === undefined) throw new Error('memory: no git repository found for project scope')
-    const key = projectScopeKey(gitRoot)
-    return { key, store: storeForScope(key) }
-  }
-  return { key: 'global', store: root }
+} catch (error) {
+  await backend.close()
+  await release()
+  throw error
 }
-
-const tools = [
+const definitions = [
   {
     name: 'memory_read',
-    description: 'Read the memory summary for a scope.',
+    description: 'Read active facts in the configured project',
     inputSchema: {
       type: 'object',
       properties: {
-        scope: { type: 'string', description: "global, workspace, or project (default global)" },
-        cwd: { type: 'string', description: 'Working directory for workspace/project scope' }
-      }
-    }
-  },
-  {
-    name: 'memory_add',
-    description: 'Store one durable fact. Duplicates and obvious credentials are rejected by default.',
-    inputSchema: {
-      type: 'object',
-      required: ['content'],
-      properties: {
-        content: { type: 'string' },
-        tags: { type: 'array', items: { type: 'string' } },
-        importance: { type: 'number', description: '0-3, default 1' },
-        allowDuplicate: { type: 'boolean' },
-        allowSecret: { type: 'boolean' },
-        scope: { type: 'string' },
-        cwd: { type: 'string' }
-      }
+        status: { type: 'string' },
+        offset: { type: 'integer' },
+        limit: { type: 'integer' }
+      },
+      additionalProperties: false
     }
   },
   {
     name: 'memory_search',
-    description: 'BM25-ranked multi-keyword search with optional tag filtering and fuzzy fallback.',
+    description: 'Search the configured project only',
     inputSchema: {
       type: 'object',
-      required: ['query'],
       properties: {
         query: { type: 'string' },
         tags: { type: 'array', items: { type: 'string' } },
-        mode: { type: 'string', description: "all or any" },
-        fuzzy: { type: 'boolean' },
-        vector: { type: 'boolean' },
-        limit: { type: 'number' },
-        scope: { type: 'string' },
-        cwd: { type: 'string' }
-      }
+        limit: { type: 'integer' }
+      },
+      required: ['query'],
+      additionalProperties: false
     }
   },
   {
-    name: 'memory_update',
-    description: 'Update an entry by id.',
+    name: 'memory_mutate',
+    description: 'Mutate one fact with expected revision and replay key',
     inputSchema: {
       type: 'object',
-      required: ['id'],
       properties: {
+        op: { type: 'string', enum: ['add', 'update', 'delete', 'archive', 'restore'] },
         id: { type: 'string' },
         content: { type: 'string' },
         tags: { type: 'array', items: { type: 'string' } },
-        importance: { type: 'number' },
-        scope: { type: 'string' },
-        cwd: { type: 'string' }
-      }
-    }
-  },
-  {
-    name: 'memory_delete',
-    description: 'Delete an entry by id.',
-    inputSchema: {
-      type: 'object',
-      required: ['id'],
-      properties: {
-        id: { type: 'string' },
-        scope: { type: 'string' },
-        cwd: { type: 'string' }
-      }
-    }
-  },
-  {
-    name: 'memory_merge',
-    description: 'Merge two or more entries; longest content, tag union and max importance win.',
-    inputSchema: {
-      type: 'object',
-      required: ['ids'],
-      properties: {
-        ids: { type: 'array', items: { type: 'string' } },
-        keepId: { type: 'string' },
-        scope: { type: 'string' },
-        cwd: { type: 'string' }
-      }
-    }
-  },
-  {
-    name: 'memory_review',
-    description: 'List oldest entries and near-duplicate groups for review.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        limit: { type: 'number' },
-        olderThanDays: { type: 'number' },
-        scope: { type: 'string' },
-        cwd: { type: 'string' }
-      }
-    }
-  },
-  {
-    name: 'memory_history',
-    description: 'List retained summary versions for a scope.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        scope: { type: 'string' },
-        cwd: { type: 'string' }
-      }
+        expectedRevision: { type: 'integer' },
+        idempotencyKey: { type: 'string' }
+      },
+      required: ['op', 'expectedRevision', 'idempotencyKey'],
+      additionalProperties: false
     }
   },
   {
     name: 'memory_stats',
-    description: 'Report memory store health for a scope.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        scope: { type: 'string' },
-        cwd: { type: 'string' }
-      }
-    }
+    description: 'Inspect this separate store',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false }
   }
 ]
-
-async function callTool(name, args = {}) {
-  const target = await route(args)
-  const store = target.store
-  switch (name) {
-    case 'memory_read': {
-      const summary = await store.readSummary()
-      const raw = await store.readRawEntries()
-      const archived = await store.archivedRawStats()
-      return { scope: target.key, summary, version: summaryVersion(summary), rawCount: raw.length, archivedCount: archived.count }
-    }
-    case 'memory_add': {
-      const content = validateContent(args.content)
-      if (redact && args.allowSecret !== true) {
-        const secrets = detectSecrets(content)
-        if (secrets.length > 0) throw new Error(`content looks like a credential (${secrets.map((item) => item.type).join(', ')}); pass allowSecret: true to store it`)
+let pending = Promise.resolve(),
+  buffer = '',
+  closed = false,
+  queued = 0
+const send = async (value) => {
+  if (closed) return
+  const data = JSON.stringify(value) + '\n'
+  if (Buffer.byteLength(data) > 2 * 1024 * 1024) fail('quota', 'Response exceeds limit')
+  if (!process.stdout.write(data))
+    await once(process.stdout, 'drain', { signal: controller.signal }).catch(() => {})
+}
+async function handle(message) {
+  if (!message || message.jsonrpc !== '2.0' || !['string', 'number'].includes(typeof message.id))
+    return
+  try {
+    let result
+    if (message.method === 'initialize')
+      result = {
+        protocolVersion: '2024-11-05',
+        capabilities: { tools: { listChanged: false } },
+        serverInfo: { name: 'strique-memory-separate', version: '0.3.0-internal.1' }
       }
-      const tags = normalizeTags(args.tags)
-      const importance = Number.isFinite(args.importance) ? Math.min(3, Math.max(0, Math.trunc(args.importance))) : 1
-      return store.withLock(async () => {
-        if (args.allowDuplicate !== true) {
-          const existing = await store.findDuplicate(content)
-          if (existing !== undefined) return { id: existing.id, ts: existing.ts, duplicate: true }
-        }
-        const entry = await store.appendRawEntry({ content, tags, importance })
-        await store.appendJournal({ op: 'add', id: entry.id, ts: entry.ts, entry })
-        return { id: entry.id, ts: entry.ts, duplicate: false, scope: target.key }
-      })
-    }
-    case 'memory_search': {
-      const query = String(args.query ?? '').trim()
-      if (query.length === 0) throw new Error('query must be a non-empty string')
-      const limit = Number.isFinite(args.limit) ? Math.min(Math.max(1, Math.trunc(args.limit)), 50) : 10
-      const mode = String(args.mode || 'all').toLowerCase()
-      if (mode !== 'all' && mode !== 'any') throw new Error("mode must be 'all' or 'any'")
-      const tags = Array.isArray(args.tags) ? args.tags.filter((tag) => typeof tag === 'string').map((tag) => tag.trim()).filter(Boolean).slice(0, 16) : []
-      const hits = await store.searchRaw(query, { tags, mode, limit, fuzzy: args.fuzzy !== false, vector: args.vector === true, embedding })
-      return { scope: target.key, matches: hits.map(({ entry, score }) => ({ id: entry.id, ts: entry.ts, score, content: entry.content, tags: entry.tags })) }
-    }
-    case 'memory_update': {
-      const id = String(args.id ?? '').trim()
-      if (id.length === 0) throw new Error('id is required')
-      const patch = {}
-      if (args.content !== undefined) patch.content = validateContent(args.content)
-      if (args.tags !== undefined) patch.tags = normalizeTags(args.tags)
-      if (args.importance !== undefined) patch.importance = Math.min(3, Math.max(0, Math.trunc(args.importance)))
-      return store.withLock(async () => {
-        const entry = await store.updateRawEntry(id, patch)
-        await store.appendJournal({ op: 'update', id: entry.id, ts: entry.ts, entry })
-        return entry
-      })
-    }
-    case 'memory_delete': {
-      const id = String(args.id ?? '').trim()
-      if (id.length === 0) throw new Error('id is required')
-      return store.withLock(async () => {
-        const entry = await store.deleteRawEntry(id)
-        await store.appendJournal({ op: 'delete', id: entry.id, ts: entry.ts, entry })
-        return { id }
-      })
-    }
-    case 'memory_merge': {
-      const ids = Array.isArray(args.ids) ? args.ids.map((id) => String(id).trim()).filter(Boolean) : []
-      if (ids.length < 2) throw new Error('at least two entry ids are required')
-      const keepId = String(args.keepId !== undefined ? args.keepId : ids[0]).trim()
-      return store.withLock(async () => {
-        const { kept, removed } = await store.mergeRawEntries(ids, keepId)
-        await store.appendJournal({ op: 'update', id: kept.id, ts: kept.ts, entry: kept })
-        for (const entry of removed) await store.appendJournal({ op: 'delete', id: entry.id, ts: entry.ts, entry })
-        return { id: kept.id, mergedIds: [kept.id, ...removed.map((entry) => entry.id)], content: kept.content }
-      })
-    }
-    case 'memory_review': {
-      const entries = (await store.readRawEntries()).concat(await store.readArchivedEntries())
-      const limit = Number.isFinite(args.limit) ? Math.min(Math.max(1, Math.trunc(args.limit)), 100) : 20
-      const olderThanDays = Number.isFinite(args.olderThanDays) ? Math.max(0, args.olderThanDays) : 0
-      const cutoff = olderThanDays > 0 ? Date.now() - olderThanDays * 24 * 60 * 60 * 1000 : undefined
-      const candidates = entries
-        .filter((entry) => {
-          if (cutoff === undefined) return true
-          const parsed = Date.parse(`${String(entry.ts).replace(' ', 'T')}Z`)
-          return Number.isFinite(parsed) && parsed < cutoff
-        })
-        .sort((a, b) => String(a.ts).localeCompare(String(b.ts)))
-        .slice(0, limit)
-      return { scope: target.key, candidates, nearDuplicates: findNearDuplicateGroups(entries) }
-    }
-    case 'memory_history': {
-      const history = await store.listSummaryHistory()
-      return { scope: target.key, versions: history.map(({ version, file, mtime, bytes }) => ({ version, file, mtime, bytes })) }
-    }
-    case 'memory_stats': {
-      const summary = await store.readSummary()
-      const raw = await store.readRawEntries()
-      const archived = await store.archivedRawStats()
-      const state = await store.readState()
-      const journal = await store.readJournal(0)
-      return {
-        scope: target.key,
-        dir: store.dir,
-        summaryVersion: summaryVersion(summary),
-        summaryBytes: await store.fileBytes(SUMMARY_FILE),
-        rawCount: raw.length,
-        rawBytes: await store.fileBytes(RAW_FILE),
-        archivedRawCount: archived.count,
-        archivedRawBytes: archived.bytes,
-        journalEvents: journal.events.length,
-        journalCursor: state.journalCursor,
-        historyFiles: (await store.listSummaryHistory()).length
+    else if (message.method === 'ping') result = {}
+    else if (message.method === 'tools/list') result = { tools: definitions }
+    else if (message.method === 'tools/call') {
+      const d = definitions.find((t) => t.name === message.params?.name),
+        a = message.params?.arguments ?? {}
+      if (
+        !d ||
+        !a ||
+        typeof a !== 'object' ||
+        Array.isArray(a) ||
+        Object.keys(a).some((k) => !(k in d.inputSchema.properties))
+      )
+        fail('invalid-input', 'Unknown tool or argument')
+      const value = await store[d.name.slice(7)](caller, a)
+      result = {
+        content: [{ type: 'text', text: JSON.stringify(safe(value)) }],
+        structuredContent: value,
+        isError: false
       }
+    } else {
+      await send({
+        jsonrpc: '2.0',
+        id: message.id,
+        error: { code: -32601, message: 'Method not found' }
+      })
+      return
     }
-    default:
-      throw new Error(`unknown tool ${name}`)
+    await send({ jsonrpc: '2.0', id: message.id, result })
+  } catch (e) {
+    await send({
+      jsonrpc: '2.0',
+      id: message.id,
+      result: { content: [{ type: 'text', text: JSON.stringify(errorResult(e)) }], isError: true }
+    })
   }
 }
-
-function send(message) {
-  process.stdout.write(`${JSON.stringify(message)}\n`)
-}
-
-const rl = createInterface({ input: process.stdin, terminal: false })
-rl.on('line', (line) => {
-  const raw = line.trim()
-  if (raw.length === 0) return
-  let message
-  try {
-    message = JSON.parse(raw)
-  } catch {
+process.stdin.setEncoding('utf8')
+process.stdin.on('data', (chunk) => {
+  if (closed) return
+  buffer += chunk
+  if (Buffer.byteLength(buffer) > 1024 * 1024) {
+    process.stderr.write('Request buffer limit exceeded\n')
+    void stop()
     return
   }
-  const { id, method, params } = message
-  const respond = (result, error) => {
-    if (id !== undefined) send({ jsonrpc: '2.0', id, result, error })
-  }
-  Promise.resolve().then(async () => {
-    switch (method) {
-      case 'initialize':
-        return respond({ protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'dsh-memory', version: '0.2.0' } })
-      case 'ping':
-        return respond({})
-      case 'tools/list':
-        return respond({ tools })
-      case 'tools/call': {
-        try {
-          const result = await callTool(params && params.name, (params && params.arguments) || {})
-          respond({ content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] })
-        } catch (error) {
-          respond({ content: [{ type: 'text', text: String(error && error.message !== undefined ? error.message : error) }], isError: true })
-        }
-        return undefined
-      }
-      default:
-        return undefined
+  while (buffer.includes('\n')) {
+    const index = buffer.indexOf('\n'),
+      line = buffer.slice(0, index)
+    buffer = buffer.slice(index + 1)
+    if (++queued > 64) {
+      process.stderr.write('Request queue limit exceeded\n')
+      void stop()
+      return
     }
-  }).catch((error) => {
-    respond(undefined, { code: -32000, message: String(error && error.message !== undefined ? error.message : error) })
-  })
+    pending = pending.then(async () => {
+      try {
+        return await handle(JSON.parse(line))
+      } catch {
+        await send({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } })
+      } finally {
+        queued--
+      }
+    })
+  }
 })
+async function stop() {
+  if (closed) return
+  closed = true
+  process.stdin.pause()
+  controller.abort()
+  await pending
+  await store.close()
+  await release()
+}
+process.stdin.on('end', () => void stop())
+process.on('SIGINT', () => void stop())
+process.on('SIGTERM', () => void stop())

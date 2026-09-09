@@ -1,3 +1,5 @@
+> Historical upstream document. It does not describe the Strique fork. See [current operations](OPERATIONS.md) and [implementation plan](IMPLEMENTATION_PLAN.md).
+
 # dsh-memory 扩展方向与优化路线
 
 > 基线：`@dsh-external/dsh-memory` v0.1.0（历史基线，仓库 `E:\git\github\dsh-Plugin` @ `43cea35`）。

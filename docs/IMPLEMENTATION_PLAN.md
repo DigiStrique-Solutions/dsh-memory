@@ -1,6 +1,6 @@
 # DSH memory and procedural learning implementation plan
 
-Status: proposed, ready for implementation review. Date: 2026-09-09. Runtime implementation has not started. This branch contains research, an audit, and reproducible defect fixtures.
+Status: approved and implemented on `codex/memory-learning`. Date: 2026-09-09. See `OPERATIONS.md` for implementation decisions and `VERIFICATION.md` for actual evidence and remaining activation gates. Live-model improvement is not claimed.
 
 ## Recommendation
 

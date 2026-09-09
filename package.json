@@ -1,7 +1,7 @@
 {
-  "name": "@dsh-external/dsh-memory",
-  "version": "0.2.11",
-  "description": "Codex-like persistent memory for DeepSeek Harness: auto-injected memory summary, raw memory tools, and per-session rollout summaries distilled into a bounded global memory file.",
+  "name": "@strique/dsh-memory",
+  "version": "0.3.0-internal.1",
+  "description": "Scoped durable memory and evidence-bound, reviewed procedural learning for DeepSeek Harness.",
   "keywords": [
     "deepseek",
     "deepseek-harness",
@@ -14,14 +14,15 @@
     "rollout-summary"
   ],
   "type": "module",
-  "packageManager": "pnpm@11.7.0",
+  "packageManager": "npm@11.17.0",
   "engines": {
-    "node": ">=20.3.0"
+    "node": ">=22"
   },
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
   "bin": {
-    "dsh-memory-mcp": "./bin/dsh-memory-mcp.mjs"
+    "dsh-memory-mcp": "./bin/dsh-memory-mcp.mjs",
+    "dsh-memory-migrate": "./bin/dsh-memory-migrate.mjs"
   },
   "exports": {
     ".": {
@@ -33,18 +34,31 @@
       "default": "./lib/client.js"
     },
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./tools": {
+      "types": "./lib/types/tools.d.ts",
+      "default": "./lib/tools.js"
+    },
+    "./learning": {
+      "types": "./lib/types/learning.d.ts",
+      "default": "./lib/learning.js"
+    },
+    "./web": {
+      "types": "./lib/types/web.d.ts",
+      "default": "./lib/web.js"
+    }
   },
   "files": [
     "lib",
     "bin",
-    "examples",
-    "scripts",
     "cordis.patch.yml",
-    "CHANGELOG.md",
     "README.md",
     "README.zh.md",
-    "LICENSE"
+    "CHANGELOG.md",
+    "LICENSE",
+    "docs/OPERATIONS.md",
+    "docs/VERIFICATION.md",
+    "docs/IMPLEMENTATION_PLAN.md"
   ],
   "dsh": {
     "bundle": {
@@ -59,15 +73,30 @@
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-llm": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-settings": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-tools": "^0.1.2-rc.1",
-    "@deepseek-ai/schemastery": "^3.18.0"
+    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/dsh-llm": "0.1.5-alpha.1",
+    "@deepseek-ai/dsh-storage-domain": "0.1.5-alpha.1",
+    "@deepseek-ai/dsh-tools": "0.1.5-alpha.1",
+    "@deepseek-ai/schemastery": "3.18.2",
+    "@deepseek-ai/dsh-settings": "0.1.5-alpha.1"
   },
   "license": "MIT",
   "scripts": {
-    "test": "node --test test/store.test.js test/browser.test.js test/web-settings.test.js test/automation.test.js test/embedding.integration.test.js test/mcp.integration.test.js test/host-wiring.test.js",
-    "check": "node scripts/check-release.mjs"
+    "test": "node --test --test-reporter=tap test/*.test.js",
+    "check": "node scripts/check-release.mjs",
+    "eval": "node scripts/evaluate.mjs"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis-plugin-loader": "1.0.3",
+    "@deepseek-ai/dsh-host-webserver": "0.1.5-alpha.1",
+    "@deepseek-ai/dsh-skill": "0.1.5-alpha.1",
+    "@deepseek-ai/dsh-storage-json": "0.1.5-alpha.1",
+    "@deepseek-ai/dsh-system-prompt": "0.1.5-alpha.1",
+    "@types/node": "22.18.0",
+    "prettier": "3.6.2",
+    "typescript": "5.9.3"
   }
 }

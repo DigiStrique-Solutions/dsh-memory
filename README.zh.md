@@ -1,172 +1,53 @@
-# dsh-memory
+# Strique DSH 记忆与流程学习
 
-面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的类 Codex 记忆插件。每个会话都拥有一份持久化、自动注入的记忆：蒸馏后的全局记忆摘要随每次提示词注入；智能体通过专用工具读写、搜索记忆；每轮对话结束后自动蒸馏为会话级 rollout 摘要，并定期重新合并进全局记忆文件。
+内部预发布版本：**0.3.0-internal.1**。基于 [haitang1/dsh-memory](https://github.com/haitang1/dsh-memory) 的 MIT 分支，由 [DigiStrique-Solutions](https://github.com/DigiStrique-Solutions/dsh-memory) 维护。
 
-## 工作原理
+此插件保存项目事实，从 Host 会话证据中提出可审核的流程，并通过现有 DSH 技能注册表提供已批准的版本。审核界面显示先前和候选的完整流程包、资源、来源证据和版本哈希。撤销事实或证据会立即停用依赖它们的流程。这是流程学习，不是训练模型权重。
 
-```
-$DSH_HOME/memories/
-├── memory_summary.md           蒸馏版、带版本号、有字节上限的全局记忆 —— 注入每个提示词
-├── raw_memories.md             工具写入的追加式原始条目（带日期）
-├── rollout_summaries/<sid>.md  每会话的轮次摘要（自动）
-├── journal.jsonl               变更日志（合并游标消费）
-├── summary_history/<v>.<ts>.md 保留的摘要历史版本（可回滚）
-├── archive/raw-YYYY-MM.md      超出字节预算后被归档的旧 raw 条目
-├── scopes/ws-<hash>/...         按工作区隔离的记忆库（开启 scopedMemory 后）
-├── scopes/project-<hash>/...    按 git 根隔离的项目记忆库（开启 scopedMemory 后）
-└── state.json                  版本 + journal/rollout 游标进度
-```
+默认仅支持一个通过认证的本地用户。模型工具只使用 Host 确定的项目范围；全局偏好必须由用户明确保存。默认使用本地词法检索，远程证据发送关闭，流程发布需要用户审核。不会自动修改旧数据或日常使用的配置。
 
-- **注入** —— 通过 `systemPrompt.context` 在每次提示词组装时重读 `memory_summary.md`，因此 `memory_add` 写入后下一步立即生效。
-- **工具** —— `memory_read` / `memory_add` / `memory_update` / `memory_delete` / `memory_search` / `memory_review` / `memory_merge` / `memory_export` / `memory_import` / `memory_stats` / `memory_browse` / `memory_history` / `memory_rollback` / `memory_sync`（见下表）。
-- **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
-- **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
+## 安装与兼容
 
-当前版本：**0.2.11** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+目标是 DSH **0.1.5-alpha.1**、Cordis **4.0.2**，Node 22 或更新版本。本地验证使用 Node 26.4.0。CI 配置包含 Node 22、24、26，配置矩阵并不代表远程 CI 已通过。实际证据见 [运维说明](docs/OPERATIONS.md)。
 
-## 安装
+运行 `npm ci --ignore-scripts`、`npm run check`、`npm pack --ignore-scripts`。在隔离的 `DSH_HOME` 中执行 `dsh plugin --profile web add /绝对路径/strique-dsh-memory-0.3.0-internal.1.tgz`。插件包含可独立切换的 `strique-memory`、`strique-memory-tools`、`strique-memory-learning`、`strique-memory-web`，设置中显示“记忆与学习”。正式启用前移除旧的 `dsh-memory` 行。不要为了消除 peer 提示而安装第二份 Cordis 运行时。
 
-一键路径使用 `scripts/sync-install.ps1`（见下文「部署 / 更新」）；手动路径如下。两种方式之后都需要重启 DeepSeek Harness。
+## 使用
 
-1. 将包复制到 profile 的外部插件目录：
+模型工具为 `memory_read`、`memory_search`、`memory_mutate`、`memory_stats`、`learning_evidence` 和 `learning_propose`。修改需要当前事实版本与唯一幂等键；新增时版本为 `0`。工具不能提供自己的用户身份、全局范围或审核权限。
 
-   ```powershell
-   Copy-Item -Recurse ...\dsh-memory "$env:USERPROFILE\.dsh\profiles\web\node_modules\@dsh-external\dsh-memory"
-   ```
+学习任务保存完整事件范围、水位、重试、预算和失败原因。用户陈述、工具观察、模型声明和中断不会混为“验证成功”。候选流程必须经过验证和用户审核，过期哈希会被拒绝。审核界面支持归档、恢复、固定、回滚、撤销证据、暂停提取和记录结果。技能加载只算接触记录，不等于成功；成功或失败必须由用户结合工具证据确认。
 
-2. 在 `~/.dsh/profiles/web/cordis.patch.yml` 中追加 loader 行（必须是 `insert` 条目——独立的 `- id:` 行只用于覆盖已存在的 bundle 条目，不会挂载新插件）：
-
-   ```yaml
-   - insert:
-       - id: dsh-memory
-         name: '@dsh-external/dsh-memory'
-         config:
-           maxBytes: 8000
-           autoSummarize: true
-   ```
-
-3. 重启 DeepSeek Harness。插件以 `dsh-memory` 挂载，设置命名空间为 `memory`。
-
-或者，在任何平台（含 Linux/macOS）通过 DSH CLI 从 GitHub 安装——CLI 会自动挂载 bundle，无需手写 `cordis.patch.yml` 行：
-
-```bash
-dsh plugin --profile web add 'github:haitang1/dsh-memory#f3c8de4'
-```
-
-建议钉住 commit（`f3c8de4` 即 `v0.2.7` 发布提交）；省略 `#<sha>` 后缀则安装默认分支。安装后需重启 DeepSeek Harness。
+导入和导出使用浏览器中的有限 JSON，不接受模型提供的任意 Host 文件路径。导入先预览，再使用对应的哈希和版本应用。
 
 ## 配置
 
-| 键 | 默认值 | 说明 |
-| --- | --- | --- |
-| `memoryDir` | `$DSH_HOME/memories` | 记忆目录（空 = 默认）。 |
-| `maxBytes` | `8000` | 注入摘要的字节上限。 |
-| `consolidateMaxBytes` | `40000` | 合并模型输入的总字节预算。 |
-| `keepSummaryVersions` | `20` | 保留的摘要历史版本数，供 `memory_rollback` 回滚（0 = 不保留）。 |
-| `rawArchiveMaxBytes` | `200000` | 活动 raw 文件字节预算；超出后最旧条目移入 `archive/`。 |
-| `autoSummarize` | `true` | 是否把结束的轮次蒸馏成 rollout 摘要。 |
-| `summarizeProvider` / `summarizeModel` | 当前选择的模型 | 摘要使用的模型。 |
-| `summarizeDebounceMs` | `300000` | 同一会话两次蒸馏的最小间隔（0 = 关闭防抖）。 |
-| `consolidateEvery` | `3` | 累计多少份 rollout 摘要后重新合并全局摘要。 |
-| `summaryMaxTokens` | `1500` | 单轮摘要 LLM 的最大输出 token。 |
-| `consolidateMaxTokens` | `8192` | 摘要合并 LLM 的最大输出 token。 |
-| `llmRetries` | `1` | LLM 瞬时失败后的重试次数。 |
-| `maxActiveSummaries` | `4` | 同时进行的轮次摘要上限，超出后丢弃新任务。 |
-| `scopedMemory` | `false` | 开启按工作区隔离的记忆作用域。 |
-| `redactSecrets` | `true` | 注入前对疑似凭据文本做脱敏。 |
-| `readOnlyScopes` | `[]` | 禁止写入工具的作用域键（`global`、精确 `ws-*`/`project-*`，或 `*` 表示全部）。 |
-| `embeddingBaseURL` / `embeddingApiKey` / `embeddingModel` | 空 | `vector:true` 时可选的 OpenAI 兼容 `/embeddings` 端点；为空则使用本地哈希向量。 |
-| `scopeMaxBytes` | `2400` | scopedMemory 开启时工作区摘要的注入字节预算。 |
-| `seedFromAgentsMd` | `true` | 是否用 `$DSH_HOME/AGENTS.md` 导入初始摘要。 |
+记忆策略通过 DSH 的 `strique-memory` 设置实时生效，不包含 API 密钥。凭据由所选的 DSH 模型提供方负责解析和轮换。
 
-Web 设置页卡片（见下文）可在线编辑**全部配置项**；各键亦可通过 loader 配置或 `settings.yaml` 的 `memory:` 段覆盖。
+| 配置 | 默认值 | 含义 |
+|---|---|---|
+| `read` | `true` | 允许读取、召回和技能发现。 |
+| `capture` | `true` | 允许证据采集、候选、任务及结果记录。 |
+| `mutate` | `true` | 允许事实修改和预览后的导入。 |
+| `publish` | `true` | 允许审核后的流程发布与维护。 |
+| `export` | `true` | 允许本地用户导出事实。 |
+| `remoteEgress` | `false` | 允许向配置的模型发送有限证据。 |
+| `recallBytes` | `8192` | 召回字节预算，范围 512 至 32768。 |
 
-## 工具
+学习行参数为 `enabled: true`、`provider: ''`、`model: ''`、`dailyTokens: 20000`、`maxTokens: 2048`、`timeoutMs: 60000`。空路由使用当前 DSH 模型选择；路由缺失时任务保持待处理。行配置修改遵循 Cordis 生命周期。关闭提取仍可保留已批准技能的发现。每日预算按范围计算，以输入 UTF-8 字节、输出额度和提示开销保守预留，崩溃后仍保留预留量。
 
-| 工具 | 用途 |
-| --- | --- |
-| `memory_read { scope? }` | 读取全局、工作区或项目（最近 git 根）记忆摘要。 |
-| `memory_add { content, tags?, scope?, importance?, allowDuplicate?, allowSecret? }` | 存储事实；明显凭据默认拒绝（除非 `allowSecret:true`），`importance` 0-3 影响排序，默认拒绝重复事实。 |
-| `memory_update { id, content?, tags?, importance?, scope? }` | 在指定作用域替换条目的内容/标签/重要性。 |
-| `memory_delete { id, scope? }` | 从指定作用域删除条目。 |
-| `memory_search { query, tags?, mode?, fuzzy?, vector?, limit?, scope? }` | BM25 搜索 + 可选本地哈希向量余弦检索（`vector:true`），为缺失查询词召回候选。 |
-| `memory_stats {}` | 报告全局 + 各作用域库存、游标、历史、LLM 计数与最近错误。 |
-| `memory_history { scope? }` | 列出保留的摘要版本（新→旧）供 `memory_rollback` 使用。 |
-| `memory_browse { targetDir, overwrite? }` | 导出全作用域的自包含交互式 HTML 记忆浏览器。 |
-| `memory_rollback { version }` | 回滚到之前保留的摘要版本。 |
-| `memory_sync {}` | AGENTS.md 变化时重新导入；若摘要也被手改则报告冲突而不覆盖。 |
-| `memory_export { targetDir, scope?, overwrite? }` | 导出作用域为 Codex 兼容的 `memory_summary.md` + `raw_memories.md`。 |
-| `memory_import { sourceDir, scope?, merge? }` | 从 Codex 兼容的 `raw_memories.md` 导入条目（追加或替换）。 |
-| `memory_review { scope?, limit?, olderThanDays? }` | 列出最旧条目与近重复组供复核；绝不自动删除。 |
-| `memory_merge { ids, keepId?, scope? }` | 合并活动条目：保留最长内容、标签并集、最高重要性。 |
+## 评估与自动批准
 
+`npm run eval` 运行确定性安全检查，不证明学习效果提升。真实模型比较使用 `node scripts/evaluate.mjs --driver /路径/driver.mjs --corpus /路径/corpus.json`。评估答案不发送给模型。
 
+自动批准默认关闭。必须由本地用户审核真实模型报告并明确启用：每种模式至少 30 个配对留出试验、全部安全检查通过、相对仅记忆模式至少改善 6 个试验且没有未解释的回退。不支持仅凭助手声明自动批准。用户必须确认报告和判定规则的来源；JSON 报告本身不是可信证明。测试或安装不会启用自动策略。
 
-## 独立 MCP 服务器
+## 存储与迁移
 
-`bin/dsh-memory-mcp.mjs` 通过 stdio JSON-RPC（MCP）暴露同一套 Markdown 记忆库，不依赖 DeepSeek Harness 运行时。环境变量：`DSH_MEMORY_DIR`（默认 `~/.dsh/memories`）、`DSH_MEMORY_REDACT=1`（默认）。作用域参数：`global`（默认）、`workspace`/`project`（需 `cwd`）。
+Host 使用 DSH `storageDomain`。每个范围是一个有界原子记录，包含事实、删除标记、幂等回执、证据、候选、任务及发布指针。不可变流程包保存在 `$DSH_HOME/strique-memory-v1/objects`。同一 Home 的写入锁不会自动过期。
 
-提供 9 个工具，存储语义与 DSH 工具一致：`memory_read`、`memory_add`、`memory_update`、`memory_delete`、`memory_search`、`memory_stats`、`memory_history`、`memory_merge`、`memory_review`。客户端配置示例见 [`examples/mcp-config.json`](examples/mcp-config.json)。
+先完整备份旧目录，再执行 `dsh-memory-migrate 旧目录 > migration-preview.json`。该命令不修改来源。逐条核对报告和原文件，在界面粘贴报告的 `data`，预览后应用。重复 ID、歧义 Markdown 和检测到的凭据会隔离。旧格式无法恢复全部原始意图，不会自动迁移摘要或 AGENTS 内容。
 
+MCP 必须显式设置 `DSH_MEMORY_MODE=separate`、`DSH_MEMORY_DIR=/独立存储`、`DSH_MEMORY_PROJECT=/项目`。它使用相同事实验证和独占锁，不能共享 Host 存储、批准流程、写出任意文件或扩大范围。
 
-
-## 部署 / 更新
-
-`scripts/sync-install.ps1` 把运行时文件复制到 DSH profile 外部插件目录并校验 SHA-256；不触碰记忆数据、不重启 DSH，同步后需重启。用法：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -DryRun
-powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
-```
-
-### 脚本
-
-| 脚本 | 用途 |
-| --- | --- |
-| `scripts/sync-install.ps1` | 把运行时 + 元数据文件复制到 profile 外部插件目录并校验 SHA-256（`-DryRun` 预览，`-Backup` 写入前快照）。 |
-| `scripts/verify-after-restart.ps1` | 重启后校验：文件哈希、Web 设置白名单（rc.7 起自动识别已移除）、安装副本 MCP 冒烟（`-SkipMcpSmoke`、`-SkipWebSettingsCheck`）。 |
-| `scripts/restart-dsh.ps1` | 停掉并重新拉起 DSH web 进程，随后运行校验（先 `-WhatIf`；会关闭当前会话）。 |
-| `scripts/start-dsh-logged.ps1` | 诊断启动：重启 DSH 并把 stdout/stderr 重定向到 `$DSH_HOME/logs/`（抓取启动错误）。 |
-| `scripts/patch-web-settings.ps1` | 仅 rc.7 之前版本：把 `memory` 加入 `dsh-host-apiproxy` 的 Web 设置白名单（rc.7 已移除白名单，脚本不再适用）。 |
-| `scripts/mcp-smoke.mjs` | 独立 MCP server 冒烟（版本、工具数、add/search 往返）。 |
-
-## Web 设置页
-
-插件自带 Web 客户端 bundle，会自动在插件配置页（设置 → 插件 → 插件配置）注册「记忆 (dsh-memory)」卡片，无需额外步骤。卡片可编辑**全部配置项**（按 通用 / 自动摘要与合并 / 作用域 / 安全与嵌入 分组），通过插件自己的同源端点（`/_dsh/memory/settings`，由 host 半部分注册）读写配置。卡片文案为中英双语，跟随 DSH 的语言设置自动切换；`embeddingApiKey` 以掩码显示，`memoryDir` 更改需重启 DSH 生效。
-
-自 DSH **0.1.0-rc.7** 起：`settings.plugin.item` 改为 keyed 槽位，插件配置页按**设置命名空间**派发卡片 —— 卡片以 `key: 'memory'` 注册（即插件自己的设置命名空间）；同时 rc.7 移除了 `dsh-host-apiproxy` 的硬编码设置白名单（`WEB_SETTINGS_NAMESPACES`），通用 Web 设置 API 直接服务全部已注册命名空间，因此旧版 `patch-web-settings.ps1` 已不适用。本插件已针对 DSH **0.1.2-rc.1** 验证（该版本移除了 `settingsNamespace` 辅助导出、设置命名空间改为裸字符串，并用 Surface 层 `snapshotEvents`/`deriveMessages` 替换了 `Session.events`），并将 `peerDependencies` 收紧到 `dsh-*` `^0.1.2-rc.1` / `cordis` `^4.0.1`，以与实际验证过的 harness 对齐。
-
-## 自动记忆与 auto-memory 技能
-
-记忆的持续更新由两层互补机制保证（都不需要手动调用工具）：
-
-1. **宿主管线（全自动）** —— 根代理每轮结束后自动把该轮对话蒸馏为 rollout 摘要（由 `summarizeDebounceMs` 防抖），并定期合并进注入的全局摘要。摘要模型按 `summarizeProvider`/`summarizeModel` → 当前选择的代理模型 → `agent-default-model` 设置命名空间的顺序解析；`memory_stats` 会报告 `summarizeSkipCounts` / `lastSummarizeSkip`，被跳过的蒸馏可观测。自 0.2.3 起蒸馏同时读取 `user/message` 与 `assistant/message` 文本（此前助手回复被静默丢弃）、用户设置启动即生效（而非首次在线编辑后才生效）、内部蒸馏/合并调用关闭推理（避免撞输出上限）。已于 2026-08-16 端到端实测：回合 → rollout 文件 → 合并，全局摘要 v1 → v2。
-2. **auto-memory 技能（代理主动）** —— 插件注册一个运行时技能，指导代理主动识别关键信息（偏好、决策、约定、修复、事实），用 `memory_add` 写入（带 tags 与去重），在任务依赖历史时用 `memory_search` / `memory_read` 主动检索，并修正过时条目。重启后该技能会出现在每个会话的技能目录中。
-
-## 范围
-
-记忆存储于三个作用域：
-
-- `global` —— 所有会话共享（类 Codex 的默认）；
-- `workspace` —— 按工作目录隔离（`ws-<hash>`），`scopedMemory: true` 时启用；
-- `project` —— 按最近 git 根隔离（`project-<hash>`），`scopedMemory: true` 时启用。
-
-工具接受 `scope` 参数（`global` | `workspace` | `project`）；项目作用域解析会话的 `cwd`。各作用域的写权限可用 `readOnlyScopes` 限制。
-
-## 开发与测试
-
-`npm test` 运行 65 项测试（node:test）：
-
-- `test/store.test.js` —— 存储语义、journal、历史、归档、作用域；
-- `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链、`extractMessageText`（user/assistant 事件结构）；
-- `test/browser.test.js` —— 交互式 HTML 浏览器的快照渲染；
-- `test/web-settings.test.js` —— 设置端点生命周期（GET/POST、403/409、体积限制），以及 VM 沙箱加载客户端 bundle 断言 `settings.plugin.item` 卡片注册；
-- `test/embedding.integration.test.js` —— fake `/embeddings` 服务 + 本地哈希向量；
-- `test/mcp.integration.test.js` —— 真实 MCP 子进程往返；
-- `test/host-wiring.test.js` —— 守卫 `lib/index.js` 的宿主对接面：裸字符串设置命名空间、`settingsNamespace` 辅助导出缺失、Surface 层 `snapshotEvents`（而非 `Session.events`）、`llm` 服务经 `inject(['llm'])` 等待（而非启动时 `ctx.get`）、14 个工具清单、`agent/turn-stopping`、`systemPrompt.context` 钩子、auto-memory 技能，以及经 fake cordis ctx 的 `apply()` 冒烟（零依赖 CI 中跳过）。
-
-架构与机制说明见 [`docs/DESIGN.md`](docs/DESIGN.md)；部署状态见 [`docs/STATUS.md`](docs/STATUS.md)。
-
-## License
-
-MIT
+旧 Markdown 权威存储、14 工具接口、远程向量嵌入、自动 AGENTS 种子及 Windows 部署脚本不再支持。迁移、恢复、验证和限制见 [运维说明](docs/OPERATIONS.md)。
