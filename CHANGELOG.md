@@ -1,3 +1,14 @@
+# 0.4.0-internal.1
+
+- Give Memory a dedicated sidebar entry and main panel, accessible icon actions, theme-aware navigation, inline fact editing, readable activity and progressive review details. Fix stale tab data crashes.
+
+- Target published Harness 0.1.6-alpha.1 with separate schema-v2 snapshot upgrade and one-time Host import.
+- Capture completed turns, bound review parts, expire blocked work, compact terminal jobs and track observed versus unknown usage.
+- Learn explicit project facts under policy; review inferred/conflicting changes with exact provenance and revoke dependencies.
+- Supply current packages/facts/outcomes to refinement; schedule reviewed failures and maintenance against exact revisions.
+- Load skill resources on demand through scoped visibility checks. Add paginated evidence, jobs and factual review UI.
+- Replace admission evidence with a repeated end-to-end session-learning protocol bound to code and configuration. No live learning gain is claimed.
+
 # Changelog
 
 ## 0.3.0-internal.1 (2026-09-09)

@@ -18,8 +18,8 @@ if (
   process.exit(1)
 }
 const root = resolve(process.env.DSH_MEMORY_DIR),
-  hostRoot = resolve(process.env.DSH_HOME || join(homedir(), '.dsh'), 'strique-memory-v1')
-if (root === hostRoot || root.startsWith(hostRoot + '/'))
+  hostRoots = [1, 2].map(version => resolve(process.env.DSH_HOME || join(homedir(), '.dsh'), 'strique-memory-v' + version))
+if (hostRoots.some(hostRoot => root === hostRoot || root.startsWith(hostRoot + '/')))
   throw new Error('MCP must use a separate store')
 const release = await acquireOwner(root)
 const backend = new FileBackend(root)

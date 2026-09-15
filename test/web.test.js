@@ -42,6 +42,35 @@ test('HTTP requires actual auth and local transport, returns no credentials, enf
   )
   const value = await (await call('scopes')).json()
   assert.equal(value.result.ok, true)
+  await store.capture(
+    { ...caller, kind: 'host' },
+    {
+      session: 'review-task',
+      events: [{ seq: 0, kind: 'user-statement', text: 'I might prefer Rust', successful: false }]
+    }
+  )
+  const proposal = await store.proposeFact(
+    { ...caller, kind: 'host' },
+    {
+      content: 'Prefer Rust',
+      explicit: false,
+      evidence: [store.evidence(caller)[0].id]
+    }
+  )
+  const factReview = await (await call('fact-review', { scope: caller.scope })).json()
+  assert.equal(factReview.result.ok, true)
+  assert.equal(factReview.result.value.total, 1)
+  const decision = await (
+    await call('fact-decide', {
+      scope: caller.scope,
+      id: proposal.id,
+      hash: proposal.hash,
+      approve: true,
+      reason: 'Reviewed the inference'
+    })
+  ).json()
+  assert.equal(decision.result.ok, true)
+  assert.equal(store.read(caller).facts[0].content, 'Prefer Rust')
   assert.ok(!JSON.stringify(value).includes('synthetic-test-auth'))
   assert.equal(
     (await (await call('shell', { command: 'echo nope' })).json()).result.error.code,

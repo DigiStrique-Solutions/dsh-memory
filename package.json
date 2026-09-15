@@ -1,6 +1,6 @@
 {
   "name": "@strique/dsh-memory",
-  "version": "0.3.0-internal.1",
+  "version": "0.4.0-internal.1",
   "description": "Scoped durable memory and evidence-bound, reviewed procedural learning for DeepSeek Harness.",
   "keywords": [
     "deepseek",
@@ -22,7 +22,8 @@
   "types": "lib/types/index.d.ts",
   "bin": {
     "dsh-memory-mcp": "./bin/dsh-memory-mcp.mjs",
-    "dsh-memory-migrate": "./bin/dsh-memory-migrate.mjs"
+    "dsh-memory-migrate": "./bin/dsh-memory-migrate.mjs",
+    "dsh-memory-upgrade": "./bin/dsh-memory-upgrade.mjs"
   },
   "exports": {
     ".": {
@@ -74,27 +75,29 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "4.0.2",
-    "@deepseek-ai/dsh-llm": "0.1.5-alpha.1",
-    "@deepseek-ai/dsh-storage-domain": "0.1.5-alpha.1",
-    "@deepseek-ai/dsh-tools": "0.1.5-alpha.1",
-    "@deepseek-ai/schemastery": "3.18.2",
-    "@deepseek-ai/dsh-settings": "0.1.5-alpha.1"
+    "@deepseek-ai/dsh-llm": "0.1.6-alpha.1",
+    "@deepseek-ai/dsh-settings": "0.1.6-alpha.1",
+    "@deepseek-ai/dsh-storage-domain": "0.1.6-alpha.1",
+    "@deepseek-ai/dsh-tools": "0.1.6-alpha.1",
+    "@deepseek-ai/schemastery": "3.18.2"
   },
   "license": "MIT",
   "scripts": {
     "test": "node --test --test-reporter=tap test/*.test.js",
     "check": "node scripts/check-release.mjs",
-    "eval": "node scripts/evaluate.mjs"
+    "eval": "node scripts/evaluate.mjs",
+    "eval:supplied": "node scripts/evaluate-supplied.mjs"
   },
   "dependencies": {
     "zod": "4.4.3"
   },
   "devDependencies": {
     "@deepseek-ai/cordis-plugin-loader": "1.0.3",
-    "@deepseek-ai/dsh-host-webserver": "0.1.5-alpha.1",
-    "@deepseek-ai/dsh-skill": "0.1.5-alpha.1",
-    "@deepseek-ai/dsh-storage-json": "0.1.5-alpha.1",
-    "@deepseek-ai/dsh-system-prompt": "0.1.5-alpha.1",
+    "@deepseek-ai/dsh-host-webserver": "0.1.6-alpha.1",
+    "@deepseek-ai/dsh-skill": "0.1.6-alpha.1",
+    "@deepseek-ai/dsh-storage-json": "0.1.6-alpha.1",
+    "@deepseek-ai/dsh-system-prompt": "0.1.6-alpha.1",
+    "@deepseek-ai/dsh-tool-skill": "0.1.6-alpha.1",
     "@types/node": "22.18.0",
     "prettier": "3.6.2",
     "typescript": "5.9.3"
