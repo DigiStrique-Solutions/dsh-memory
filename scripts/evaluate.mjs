@@ -24,7 +24,7 @@ const fixtures = {
   'scope-isolation': 'search filters before ranking',
   'secret-screening': 'secret protection covers',
   'stale-approval': 'stale approvals cannot',
-  'writer-ownership': 'owner lock never',
+  'writer-ownership': 'owner lease leaves no file',
   revocation: 'revoking factual source',
   cancellation: 'hung and late provider',
   replay: 'capture does not extract',

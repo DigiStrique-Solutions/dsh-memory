@@ -4,6 +4,8 @@
 
 - Remove the Chinese documentation set and its package/release-check requirements. Client localization remains available in English and Chinese.
 
+- Keep the deterministic `writer-ownership` safety fixture mapped to the renamed ownership-lease test so CI evaluation reports the executed guard correctly.
+
 - Give Memory a dedicated sidebar entry and main panel, accessible icon actions, theme-aware navigation, inline fact editing, readable activity and progressive review details. Fix stale tab data crashes.
 
 - Target published Harness 0.1.6-alpha.1 with separate schema-v2 snapshot upgrade and one-time Host import.
