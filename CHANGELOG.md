@@ -1,4 +1,26 @@
+# 0.4.0-internal.1
+
+- Replace the persistent owner lock with a loopback OS lease. Live concurrent writers are still rejected, while clean exits, forced termination and crashes cannot leave a stale `.owner.lock` that blocks local restart.
+
+- Remove the Chinese documentation set and its package/release-check requirements. Client localization remains available in English and Chinese.
+
+- Keep the deterministic `writer-ownership` safety fixture mapped to the renamed ownership-lease test so CI evaluation reports the executed guard correctly.
+
+- Give Memory a dedicated sidebar entry and main panel, accessible icon actions, theme-aware navigation, inline fact editing, readable activity and progressive review details. Fix stale tab data crashes.
+
+- Target published Harness 0.1.6-alpha.1 with separate schema-v2 snapshot upgrade and one-time Host import.
+- Capture completed turns, bound review parts, expire blocked work, compact terminal jobs and track observed versus unknown usage.
+- Learn explicit project facts under policy; review inferred/conflicting changes with exact provenance and revoke dependencies.
+- Supply current packages/facts/outcomes to refinement; schedule reviewed failures and maintenance against exact revisions.
+- Load skill resources on demand through scoped visibility checks. Add paginated evidence, jobs and factual review UI.
+- Replace admission evidence with a repeated end-to-end session-learning protocol bound to code and configuration. No live learning gain is claimed.
+
 # Changelog
+
+## 0.3.0-internal.1 (2026-09-09)
+
+DigiStrique internal fork: structured scoped storage with replay/CAS/revocation; authenticated local review; durable evidence and bounded learning jobs; exact-hash procedure admission, resources, pin/archive/rollback; stock DSH provider integration; evaluation-gated optional autonomy; additive migration previews and separate-store MCP. Old Markdown authority, shared-writer MCP, raw API-key settings, remote embeddings and arbitrary model filesystem exports are removed. Targets DSH 0.1.5-alpha.1. No npm publication or everyday-profile activation.
+
 
 ## 0.2.11 (2026-09-05)
 

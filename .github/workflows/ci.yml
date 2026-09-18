@@ -1,22 +1,24 @@
 name: ci
-
 on:
   push:
-    branches: [main]
+    branches: [main, 'codex/**']
   pull_request:
-
 jobs:
-  test:
+  check:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [20.x, 22.x]
+        node-version: ['22', '24', '26']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-      - name: Release consistency check
-        run: npm run check
-      - name: Tests
-        run: npm test
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run check
+      - run: node scripts/evaluate.mjs > evaluation-safety.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-node-${{ matrix.node-version }}
+          path: evaluation-safety.json

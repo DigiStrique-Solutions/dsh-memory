@@ -1,0 +1,5 @@
+node_modules
+artifacts
+docs/audit
+docs/research
+package-lock.json
