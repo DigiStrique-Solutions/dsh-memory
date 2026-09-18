@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { writeFile, readFile, utimes, unlink, symlink } from 'node:fs/promises'
+import { writeFile, access, symlink } from 'node:fs/promises'
+import { spawn } from 'node:child_process'
+import { once } from 'node:events'
 import { join } from 'node:path'
 import { MemoryStore } from '../lib/store.js'
 import { FileBackend, acquireOwner, readBounded } from '../lib/files.js'
@@ -164,17 +166,33 @@ test('secret protection covers add/update/import/proposal/evidence/output', asyn
   )
   assert.ok(!JSON.stringify(store.export(caller)).includes(secret))
 })
-test('owner lock never expires, rejects symlinks, cannot remove a successor', async (t) => {
+test('owner lease leaves no file, rejects live peers, survives crashes and rejects symlinks', async (t) => {
   const { root } = await fixture(t)
   const release = await acquireOwner(root)
-  await utimes(join(root, '.owner.lock'), 0, 0)
+  await assert.rejects(access(join(root, '.owner.lock')), { code: 'ENOENT' })
   await assert.rejects(acquireOwner(root), { code: 'store-owned' })
-  await unlink(join(root, '.owner.lock'))
-  const successor = await acquireOwner(root)
   await release()
-  assert.ok(await readFile(join(root, '.owner.lock')))
-  await successor()
-  await release()
+
+  const module = new URL('../lib/files.js', import.meta.url).href,
+    child = spawn(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        `import { acquireOwner } from ${JSON.stringify(module)}; await acquireOwner(${JSON.stringify(root)}); process.stdout.write('ready\\n'); setInterval(() => {}, 1000)`
+      ],
+      { stdio: ['ignore', 'pipe', 'pipe'] }
+    )
+  t.after(() => {
+    if (child.exitCode === null) child.kill('SIGKILL')
+  })
+  await once(child.stdout, 'data')
+  await assert.rejects(acquireOwner(root), { code: 'store-owned' })
+  child.kill('SIGKILL')
+  await once(child, 'exit')
+  const afterCrash = await acquireOwner(root)
+  await afterCrash()
+
   await writeFile(join(root, 'target'), 'secret')
   await symlink(join(root, 'target'), join(root, 'linked'))
   await assert.rejects(readBounded(join(root, 'linked')))
