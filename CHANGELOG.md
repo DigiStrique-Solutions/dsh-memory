@@ -1,5 +1,9 @@
 # 0.4.0-internal.1
 
+- Replace the persistent owner lock with a loopback OS lease. Live concurrent writers are still rejected, while clean exits, forced termination and crashes cannot leave a stale `.owner.lock` that blocks local restart.
+
+- Remove the Chinese documentation set and its package/release-check requirements. Client localization remains available in English and Chinese.
+
 - Give Memory a dedicated sidebar entry and main panel, accessible icon actions, theme-aware navigation, inline fact editing, readable activity and progressive review details. Fix stale tab data crashes.
 
 - Target published Harness 0.1.6-alpha.1 with separate schema-v2 snapshot upgrade and one-time Host import.
