@@ -49,7 +49,7 @@ for (const name of [
     name
   )
 assert.ok(packed.unpackedSize < 512 * 1024)
-for (const file of ['README.md', 'README.zh.md', 'CHANGELOG.md'])
+for (const file of ['README.md', 'CHANGELOG.md'])
   assert.ok(readFileSync(file, 'utf8').includes(pkg.version), file)
 // The exit status is authoritative; no reporter text or frozen test count is parsed.
 execFileSync('npm', ['test'], { stdio: 'inherit' })

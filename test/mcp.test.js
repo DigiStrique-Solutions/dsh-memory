@@ -62,7 +62,7 @@ test('separate MCP persists canonical facts and refuses concurrent writers and m
   assert.equal(exit, 0, stderr)
 })
 
-test('failed MCP initialization releases its own lock', async (t) => {
+test('failed MCP initialization releases ownership without leaving a lock file', async (t) => {
   const { root } = await fixture(t)
   const child = spawn(process.execPath, ['bin/dsh-memory-mcp.mjs'], {
     env: {

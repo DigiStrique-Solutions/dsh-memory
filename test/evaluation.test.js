@@ -1,27 +1,37 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { assessEvaluation, SAFETY_CASES } from '../lib/evaluation.js'
+import { assessEvaluation, SAFETY_CASES, evaluationConfiguration } from '../lib/evaluation.js'
+import { digest, DEFAULT_POLICY } from '../lib/policy.js'
 import { fixture, evidence, pkg } from './helpers.js'
-const report = () => ({
+const report = (configuration = evaluationConfiguration(DEFAULT_POLICY, { route: null })) => ({
+  configuration,
+  configurationHash: digest(configuration),
+  protocol: 'session-learning-v2',
+  repetitions: [0, 1],
   format: 'strique-memory-evaluation',
-  version: 1,
+  version: 2,
   liveModel: true,
   model: 'synthetic-test-driver',
   corpusHash: 'a'.repeat(64),
   safety: SAFETY_CASES.map((name) => ({ name, passed: true })),
   trials: ['none', 'memory', 'learning'].flatMap((mode) =>
-    Array.from({ length: 30 }, (_, i) => ({
+    Array.from({ length: 60 }, (_, i) => ({
       id: 'trial' + i,
+      repetition: Math.floor(i / 30),
+      oracle: 'withheld-exact',
+      trainingFrozen: true,
+      sessionProtocol: 'harness',
+      extractionTokens: 100,
       mode,
       heldOut: true,
-      success: mode === 'learning' || i < 20,
+      success: mode === 'learning' || i % 30 < 20,
       tokens: 100,
       latencyMs: 20
     }))
   )
 })
 test('evaluation gate requires paired held-out improvements, real model evidence and all safety fixtures', () => {
-  assert.equal(assessEvaluation(report()).wins, 10)
+  assert.equal(assessEvaluation(report()).wins, 20)
   assert.throws(() => assessEvaluation({ ...report(), liveModel: false }), {
     code: 'evaluation-required'
   })
@@ -54,4 +64,25 @@ test('autonomy needs an explicit operator gate; unverified claims never auto-act
   await store.autoAdmit(host)
   assert.equal(store.catalog(caller).length, 1)
   assert.equal(store.review(caller, { id: c.id }).candidate.decision.actor, 'evaluated-policy')
+})
+
+test('a supplied-procedure benchmark cannot authorize unattended learning', () => {
+  assert.throws(() => assessEvaluation({ ...report(), protocol: 'supplied-procedure' }), {
+    code: 'evaluation-required'
+  })
+})
+
+test('changing factual learning policy invalidates a previous admission gate', async (t) => {
+  const { store, caller, host } = await fixture(t)
+  const refs = await evidence(store, host)
+  await store.configureAutonomy(caller, {
+    enabled: true,
+    report: report(store.evaluationConfiguration()),
+    classes: ['user-supported']
+  })
+  store.policy.autoFacts = false
+  await store.propose(host, { package: pkg(), evidence: refs })
+  await store.autoAdmit(host)
+  assert.equal(store.catalog(caller).length, 0)
+  assert.equal(store.stats(caller).autonomy.effective, false)
 })

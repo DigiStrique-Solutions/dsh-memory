@@ -54,6 +54,7 @@ export async function evidence(store, host) {
       { seq: 2, kind: 'tool-result', text: 'npm test: 8 passing, exit 0', successful: true }
     ]
   })
+  await store.scheduleReview(host, { session: 'session-1', through: 3 })
   return store.evidence(host).map((e) => e.id)
 }
 export async function publish(store, caller, input) {

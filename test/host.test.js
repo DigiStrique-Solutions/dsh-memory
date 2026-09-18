@@ -8,6 +8,9 @@ import * as Domains from '@deepseek-ai/dsh-storage-domain'
 import Skills from '@deepseek-ai/dsh-skill'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import Tools from '@deepseek-ai/dsh-tools'
+import Agents from '@deepseek-ai/dsh-agent'
+import { createScope } from '@deepseek-ai/dsh-scope'
+import * as SkillTool from '@deepseek-ai/dsh-tool-skill'
 import Memory, { Config } from '../lib/index.js'
 import * as ToolPlugin from '../lib/tools.js'
 import * as Learning from '../lib/learning.js'
@@ -39,6 +42,8 @@ test('real Cordis services register tools, recall and learned provider; unload a
   await ctx.plugin(Skills)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(Tools)
+  await ctx.plugin(Agents)
+  await ctx.plugin(SkillTool)
   const fiber = ctx.plugin(Memory, Config({}))
   await fiber
   assert.ok(ctx.striqueMemory?.ready)
@@ -70,16 +75,59 @@ test('real Cordis services register tools, recall and learned provider; unload a
   const catalog = await ctx.skills.list({ cwd: root })
   assert.ok(catalog.some((s) => s.name === pkg().name))
   const loaded = await ctx.skills.get(pkg().name, { cwd: root })
-  assert.ok(loaded.content.includes('Expected exit status: 0'))
-  assert.equal(ctx.striqueMemory.store.state(caller).outcomes.length, 0)
-  await ctx.parallel(
-    'tools/result',
-    { name: 'skill', agent },
-    {
-      isError: false,
-      value: { provider: 'strique-learned', name: pkg().name, content: loaded.content }
-    }
+  assert.ok(!loaded.content.includes('Expected exit status: 0'))
+  const resource = await ctx.tools.execute({
+    name: 'learning_resource',
+    callId: 'resource-a',
+    agent,
+    signal,
+    arguments: { name: pkg().name, hash: active.publication.active, path: 'references/check.md' }
+  })
+  assert.equal(resource.isError, false, JSON.stringify(resource))
+  assert.equal(resource.value.content, 'Expected exit status: 0')
+  let scope
+  await ctx.plugin(
+    Object.assign(
+      (inner) => {
+        scope = createScope(inner, agent)
+      },
+      { inject: ['tools'] }
+    )
   )
+  const unrestrict = scope.ctx.tools.restrict({ deny: ['skill'] })
+  const denied = await ctx.tools.execute({
+    name: 'learning_resource',
+    callId: 'denied',
+    agent,
+    signal,
+    arguments: { name: pkg().name, hash: active.publication.active, path: 'references/check.md' }
+  })
+  assert.equal(denied.isError, true)
+  unrestrict()
+  assert.equal(ctx.striqueMemory.store.state(caller).outcomes.length, 0)
+  const shadow = ctx.skills.register({
+    name: pkg().name,
+    description: 'Protected local skill',
+    source: 'runtime',
+    content: 'Local instructions'
+  })
+  const shadowed = await ctx.tools.execute({
+    name: 'learning_resource',
+    callId: 'shadowed',
+    agent,
+    signal,
+    arguments: { name: pkg().name, hash: active.publication.active, path: 'references/check.md' }
+  })
+  assert.equal(shadowed.isError, true)
+  shadow()
+  const skill = await ctx.tools.execute({
+    name: 'skill',
+    callId: 'load-skill',
+    agent,
+    signal,
+    arguments: { name: pkg().name }
+  })
+  assert.equal(skill.isError, false)
   await ctx.striqueMemory.store.tail
   const exposures = ctx.striqueMemory.store.state(caller).outcomes
   assert.equal(exposures.length, 1)
@@ -129,7 +177,7 @@ test('required storage dependency arrival and withdrawal reload the consumer onc
   await restored.dispose()
 })
 
-test('real session flush captures evidence and the assembled mock stream creates a pending procedure', async (t) => {
+test('real session flush captures immediately but extraction waits for the completed turn', async (t) => {
   const { default: Sessions } = await import('@deepseek-ai/dsh-session')
   const { createUserMessage } = await import('@deepseek-ai/dsh-llm')
   const { root } = await fixture(t),
@@ -171,6 +219,7 @@ test('real session flush captures evidence and the assembled mock stream creates
   const learning = ctx.plugin(Learning, Learning.Config({ provider: 'test', model: 'test' }))
   await learning
   const session = ctx.sessions.create('runtime-session', { meta: { cwd: root } })
+  session.append('turn/start', { turn: 1 })
   session.append(
     'user/message',
     createUserMessage({
@@ -186,6 +235,9 @@ test('real session flush captures evidence and the assembled mock stream creates
   )
   await ctx.sessions.flush(session)
   const caller = { ...ctx.striqueMemory.fromAgent({ session }), kind: 'operator' }
+  assert.equal(ctx.striqueMemory.store.stats(caller).jobs.length, 0)
+  session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+  await ctx.sessions.flush(session)
   for (let i = 0; i < 100 && !ctx.striqueMemory.store.review(caller).total; i++)
     await new Promise((r) => setTimeout(r, 20))
   assert.equal(ctx.striqueMemory.store.review(caller).total, 1)
@@ -250,5 +302,94 @@ test('invalid saved policy fails service initialization and releases ownership',
   await assert.rejects(async () => await fiber)
   assert.notEqual(fiber.state, 2)
   const { access } = await import('node:fs/promises')
-  await assert.rejects(access(join(root, 'strique-memory-v1', '.owner.lock')), { code: 'ENOENT' })
+  await assert.rejects(access(join(root, 'strique-memory-v2', '.owner.lock')), { code: 'ENOENT' })
+})
+
+test('Host imports a completed v2 upgrade once and preserves subsequent changes across reload', async (t) => {
+  const { upgradeSnapshot } = await import('../lib/upgrade.js')
+  const { readFile, writeFile } = await import('node:fs/promises')
+  const { root, store, caller } = await fixture(t)
+  const fact = await store.mutate(caller, {
+    op: 'add',
+    content: 'Before upgrade',
+    expectedRevision: 0,
+    idempotencyKey: 'old'
+  })
+  await store.close()
+  const source = join(root, 'state.json'),
+    rows = JSON.parse(await readFile(source, 'utf8'))
+  for (const [, s] of rows) {
+    s.schema = 1
+    for (const k of ['scheduled', 'settled', 'factCandidates']) delete s[k]
+    delete s.budget.unknown
+    delete s.autonomy.configurationHash
+  }
+  await writeFile(source, JSON.stringify(rows))
+  await upgradeSnapshot({
+    source,
+    objects: join(root, 'objects'),
+    destination: join(root, 'strique-memory-v2')
+  })
+  const previous = process.env.DSH_HOME
+  process.env.DSH_HOME = root
+  t.after(() => {
+    if (previous === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = previous
+  })
+  const ctx = new Context()
+  t.after(() => ctx.fiber.dispose())
+  await ctx.plugin(TestSettings)
+  await ctx.plugin(Storage)
+  await ctx.plugin(JsonStorage, { root: join(root, 'domains') })
+  await ctx.plugin(Domains, { backend: 'json' })
+  const first = ctx.plugin(Memory, Config({}))
+  await first
+  assert.equal(ctx.striqueMemory.store.read(caller).facts[0].id, fact.id)
+  await ctx.striqueMemory.store.mutate(caller, {
+    op: 'update',
+    id: fact.id,
+    content: 'After upgrade',
+    expectedRevision: fact.revision,
+    idempotencyKey: 'new'
+  })
+  await first.dispose()
+  await ctx.plugin(Memory, Config({}))
+  assert.equal(ctx.striqueMemory.store.read(caller).facts[0].content, 'After upgrade')
+})
+
+test('disabling extraction keeps completed-turn capture available', async (t) => {
+  const { default: Sessions } = await import('@deepseek-ai/dsh-session')
+  const { createUserMessage } = await import('@deepseek-ai/dsh-llm')
+  const { root } = await fixture(t),
+    previous = process.env.DSH_HOME
+  process.env.DSH_HOME = root
+  t.after(() => {
+    if (previous === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = previous
+  })
+  const ctx = new Context()
+  t.after(() => ctx.fiber.dispose())
+  await ctx.plugin(TestSettings)
+  await ctx.plugin(Storage)
+  await ctx.plugin(JsonStorage, { root: join(root, 'domains') })
+  await ctx.plugin(Domains, { backend: 'json' })
+  await ctx.plugin(Skills)
+  await ctx.plugin(Sessions)
+  await ctx.plugin(Memory, Config({}))
+  await ctx.plugin(Learning, Learning.Config({ enabled: false }))
+  const session = ctx.sessions.create('capture-only', { meta: { cwd: root } })
+  session.append('turn/start', { turn: 1 })
+  session.append(
+    'user/message',
+    createUserMessage({
+      source: { kind: 'user' },
+      content: [{ type: 'text', text: 'Retain this task for later review' }]
+    }),
+    { surfaceOp: 'append' }
+  )
+  session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+  await ctx.sessions.flush(session)
+  const caller = ctx.striqueMemory.fromAgent({ session })
+  assert.equal(ctx.striqueMemory.store.stats(caller).jobTotal, 1)
+  assert.equal(ctx.striqueMemory.store.stats(caller).extraction.enabled, false)
 })

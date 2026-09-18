@@ -1,9 +1,11 @@
+import * as SkillTool from '@deepseek-ai/dsh-tool-skill'
 import { createUserMessage, createToolResultMessage } from '@deepseek-ai/dsh-llm'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 export const name = 'memory-verification-fixture'
 export const inject = ['striqueMemory', 'sessions', 'tools', 'skills', 'webServer', 'connection']
 export async function apply(ctx) {
+  await ctx.plugin(SkillTool)
   const cwd = join(process.env.DSH_HOME, 'verification-project')
   await mkdir(join(cwd, '.git'), { recursive: true })
   const session = ctx.sessions.create('memory-browser-training', { meta: { cwd } }),
@@ -54,6 +56,24 @@ export async function apply(ctx) {
       ctx.striqueMemory.store.state(caller).publications.find((p) => p.name === packageValue.name)
         ?.active ?? null
   })
+  await ctx.striqueMemory.store.proposeFact(caller, {
+    content: 'For this fixture, run check-widget after changing a widget.',
+    explicit: true,
+    evidence: ctx.striqueMemory.store
+      .evidence(caller)
+      .filter((e) => e.kind === 'user-statement')
+      .slice(-1)
+      .map((e) => e.id)
+  })
+  await ctx.striqueMemory.store.proposeFact(caller, {
+    content: 'Use check-widget with verbose output.',
+    quote: 'For this fixture, run check-widget after changing a widget.',
+    explicit: false,
+    evidence: ctx.striqueMemory.store
+      .evidence(caller)
+      .filter((e) => e.kind === 'user-statement')
+      .map((e) => e.id)
+  })
   const fresh = ctx.sessions.create('memory-browser-fresh', { meta: { cwd } })
   ctx.effect(() =>
     ctx.webServer.register({
@@ -64,6 +84,65 @@ export async function apply(ctx) {
         if (denied !== undefined) {
           res.writeHead(denied)
           res.end()
+          return
+        }
+        if (req.method === 'POST' && req.url.includes('use')) {
+          const agent = { id: fresh.id, ctx, session: fresh }
+          const callId = 'use-' + Date.now()
+          fresh.append('tool/call', {
+            callId,
+            name: 'skill',
+            arguments: JSON.stringify({ name: packageValue.name }),
+            turn: 1,
+            step: 1
+          })
+          const result = await ctx.tools.execute({
+            name: 'skill',
+            callId,
+            arguments: { name: packageValue.name },
+            agent,
+            signal: AbortSignal.timeout(5000)
+          })
+          if (result.isError) throw new Error('Fixture skill load failed')
+          fresh.append('tool/call', {
+            callId: callId + '-verify',
+            name: 'check_widget',
+            arguments: '{}',
+            turn: 1,
+            step: 2
+          })
+          fresh.append(
+            'tool/result',
+            {
+              turn: 1,
+              step: 2,
+              message: createToolResultMessage({
+                callId: callId + '-verify',
+                content: [{ type: 'text', text: 'Widget check: 4 assertions pass' }],
+                isError: false
+              })
+            },
+            { surfaceOp: 'append' }
+          )
+          await ctx.sessions.flush(fresh)
+          await ctx.striqueMemory.store.tail
+          res.writeHead(200, { 'content-type': 'application/json' })
+          res.end(JSON.stringify({ ok: true }))
+          return
+        }
+        if (req.method === 'POST' && req.url.includes('fact')) {
+          const proposal = await ctx.striqueMemory.store.proposeFact(caller, {
+            content: 'Use check-widget with verbose output. Review ' + Date.now(),
+            quote: 'For this fixture, run check-widget after changing a widget.',
+            explicit: false,
+            evidence: ctx.striqueMemory.store
+              .evidence(caller)
+              .filter((e) => e.kind === 'user-statement')
+              .slice(-1)
+              .map((e) => e.id)
+          })
+          res.writeHead(200, { 'content-type': 'application/json' })
+          res.end(JSON.stringify(proposal))
           return
         }
         if (req.method === 'POST') {

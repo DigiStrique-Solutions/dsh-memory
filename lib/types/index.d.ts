@@ -13,6 +13,7 @@ export interface MemoryConfig {
   read: boolean
   capture: boolean
   mutate: boolean
+  autoFacts: boolean
   publish: boolean
   export: boolean
   remoteEgress: boolean
@@ -24,6 +25,7 @@ export interface LearningConfig {
   model: string
   dailyTokens: number
   maxTokens: number
+  inputBytes: number
   timeoutMs: number
 }
 export interface Receipt {
@@ -48,7 +50,7 @@ export interface Evidence {
   id: string
   session: string
   seq: number
-  kind: 'user-statement' | 'tool-result' | 'assistant-claim' | 'cancellation'
+  kind: 'user-statement' | 'tool-result' | 'assistant-claim' | 'cancellation' | 'turn-boundary'
   text: string
   hash: string
   observed: number
@@ -61,6 +63,30 @@ export interface ProcedurePackage {
   applicability: string
   content: string
   resources: Record<string, string>
+}
+export interface FactProposal {
+  content: string
+  quote?: string
+  evidence: string[]
+  explicit?: boolean
+  conflict?: boolean
+  base?: { id: string; revision: number } | null
+}
+export interface FactCandidate extends FactProposal {
+  id: string
+  hash: string
+  quote: string
+  explicit: boolean
+  conflict: boolean
+  base: { id: string; revision: number } | null
+  status: 'proposed' | 'active' | 'rejected'
+  reason: string
+  created: number
+  factId: string | null
+}
+export interface FactReview extends FactCandidate {
+  current: Fact | null
+  sources: Evidence[]
 }
 export interface Candidate {
   id: string
@@ -103,6 +129,8 @@ export interface Job {
   deadline: number
   route: string
   reservedTokens: number
+  reason: string
+  target?: { name: string; hash: string }
   error: string
   created: number
 }
@@ -144,7 +172,12 @@ export interface MemoryAPI {
   recall(
     caller: Caller,
     maxBytes?: number
-  ): { scope: string; revision: number; text: string; refs: { id: string; revision: number }[] }
+  ): {
+    scope: string
+    revision: number
+    text: string
+    refs: { scope: ScopeKey; id: string; revision: number }[]
+  }
   capture(
     caller: Caller,
     args: {
@@ -163,7 +196,43 @@ export interface MemoryAPI {
       base?: string | null
     }
   ): Promise<Candidate>
-  evidence(caller: Caller): Evidence[]
+  proposeFact(
+    caller: Caller,
+    args: FactProposal
+  ): Promise<FactCandidate | { status: 'duplicate'; factId: string }>
+  reviewFacts(caller: Caller, args: { id: string }): { candidate: FactReview }
+  reviewFacts(
+    caller: Caller,
+    args?: { offset?: number; limit?: number }
+  ): { candidates: FactCandidate[]; total: number }
+  decideFact(
+    caller: Caller,
+    args: { id: string; hash: string; approve: boolean; reason: string }
+  ): Promise<FactCandidate>
+  scheduleReview(
+    caller: Caller,
+    args: { session: string; through: number; reason?: string }
+  ): Promise<{ scheduled: boolean }>
+  maintainQueue(
+    caller: Caller,
+    args?: { dryRun: boolean; expectedRevision?: number }
+  ): Promise<{ revision: number; retiredJobs: number; retainedJobs: number }>
+  evidence(
+    caller: Caller,
+    args?: { session?: string; ids?: string[]; offset?: number; limit?: number }
+  ): Evidence[]
+  readResource(
+    caller: Caller,
+    args: { name: string; hash: string; path: string }
+  ): Promise<{ name: string; hash: string; path: string; content: string }>
+  outcomeOptions(
+    caller: Caller,
+    args: { name: string; hash: string; offset?: number; limit?: number }
+  ): {
+    total: number
+    exposures: { id: string; session: string; seq: number; evidence: Evidence[] }[]
+  }
+  evaluationConfiguration(): Record<string, unknown>
   review(
     caller: Caller,
     args: { id: string }
@@ -204,6 +273,7 @@ export interface MemoryAPI {
       hash: string
       session: string
       kind: 'exposure' | 'success' | 'failure'
+      seq?: number
       evidence?: string[]
     }
   ): Promise<{ id: string; kind: string }>
@@ -212,7 +282,10 @@ export interface MemoryAPI {
     caller: Caller,
     args: { enabled: boolean; report?: unknown; classes?: ('user-supported' | 'tool-observed')[] }
   ): Promise<unknown>
-  stats(caller: Caller): {
+  stats(
+    caller: Caller,
+    args?: { offset?: number; limit?: number }
+  ): {
     scope: string
     revision: number
     facts: number
@@ -220,11 +293,29 @@ export interface MemoryAPI {
     candidates: number
     activeSkills: number
     jobs: Omit<Job, 'evidence'>[]
-    budget: { day: string; reserved: number; used: number }
+    jobTotal: number
+    jobCounts: Record<Job['state'], number>
+    capacity: { jobs: number; evidence: number }
+    oldestPendingAt: number | null
+    extraction: {
+      enabled: boolean
+      route: { provider: string; model: string } | null
+      blocked: string | null
+    }
+    automaticFacts: boolean
+    pendingFacts: number
+    evaluationConfiguration: Record<string, unknown>
+    budget: { day: string; reserved: number; used: number; unknown: number }
     paused: boolean
     outcomes: number
     maintenance: unknown[]
-    autonomy: { enabled: boolean; evaluation: string | null; classes: string[] }
+    autonomy: {
+      enabled: boolean
+      effective: boolean
+      evaluation: string | null
+      configurationHash: string | null
+      classes: string[]
+    }
     captureBacklog: { session: string; from: number; to: number }[]
   }
 }

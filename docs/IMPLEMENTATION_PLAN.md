@@ -122,7 +122,7 @@ Use credential references resolved per operation, not API keys in ordinary setti
 | W6: evaluations, maintenance and configurable autonomy | evaluation fixtures/runner, outcome attribution, maintenance module/settings | Held-out comparisons, no safety failures, exposure separate from success, staleness proposals, pinning, optional eligible-class unattended admission, daily budgets and pause controls. | W5 |
 | W7: release proof | disposable profile fixtures, packed artifact checks, migration/recovery guide, README en/zh | Real Loader install/use/unload/reinstall; recorded fresh-session behavior; migration and reverse restore; exact supported matrix; reviewed tarball with no private files; operational runbook. | W1-W6 |
 
-For each runtime change, update types, config, English/Chinese docs and settings together where applicable. Do not bump or tag a release just for this plan. Add meaningful behavior tests rather than source-regex checks that merely confirm a hook name exists. Preserve upstream fixes through selective merges or cherry-picks, with integration tests at each supported target upgrade.
+For each runtime change, update types, configuration, English documentation and settings together where applicable. Do not bump or tag a release just for this plan. Add meaningful behavior tests rather than source-regex checks that merely confirm a hook name exists. Preserve upstream fixes through selective merges or cherry-picks, with integration tests at each supported target upgrade.
 
 ## Evaluation design and release gates
 
