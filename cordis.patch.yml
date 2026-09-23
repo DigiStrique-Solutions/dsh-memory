@@ -1,6 +1,10 @@
-# dsh-memory bundle patch: mounts the plugin into a profile layer stack.
-# Runtime defaults live at the plugin's config boundary. Users override them in
-# their profile patch row with the same id.
+# Remove the legacy dsh-memory row explicitly before activating this bundle.
 - insert:
-    - id: dsh-memory
-      name: '@dsh-external/dsh-memory'
+    - id: strique-memory
+      name: '@strique/dsh-memory'
+    - id: strique-memory-tools
+      name: '@strique/dsh-memory/tools'
+    - id: strique-memory-learning
+      name: '@strique/dsh-memory/learning'
+    - id: strique-memory-web
+      name: '@strique/dsh-memory/web'

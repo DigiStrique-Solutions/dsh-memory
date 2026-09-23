@@ -1,0 +1,48 @@
+import { authenticate } from './flow.mjs'
+export async function navigationFlow(page, info, expect) {
+  await authenticate(page)
+  const entry = page.getByRole('button', { name: 'Memory', exact: true })
+  await expect(entry).toBeVisible()
+  await entry.click()
+  const panel = page.getByRole('region', { name: 'Memory and learning', exact: true })
+  await expect(panel).toBeVisible()
+  await expect(entry).toHaveAttribute('aria-current', 'page')
+  await panel.getByRole('button', { name: 'Add explicit fact', exact: true }).click()
+  const content = 'Navigation check ' + Date.now()
+  await panel.getByRole('textbox', { name: 'Content', exact: true }).fill(content)
+  await panel.getByRole('button', { name: 'Save fact', exact: true }).click()
+  const row = panel.locator('article').filter({ has: page.getByText(content, { exact: true }) })
+  const pin = row.getByRole('button', { name: 'Pin', exact: true })
+  await expect(pin.locator('svg')).toHaveCount(1)
+  await expect(pin).toHaveText('')
+  await expect(pin).toHaveAttribute('title', 'Pin')
+  await pin.focus()
+  await page.keyboard.press('Enter')
+  await expect(row.getByRole('button', { name: 'Unpin', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  )
+  await panel
+    .getByRole('heading', { name: 'Memory and learning', exact: true })
+    .scrollIntoViewIfNeeded()
+  await page.screenshot({ path: info.outputPath('memory-main.png') })
+  await panel.getByRole('button', { name: 'Back to chat', exact: true }).click()
+  await expect(panel).toHaveCount(0)
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.getByRole('button', { name: 'Plugins', exact: true }).click()
+  await expect(
+    page.getByRole('dialog').getByRole('region', { name: 'Memory and learning', exact: true })
+  ).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await entry.click()
+  await expect(panel.getByText(content, { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Collapse sidebar', exact: true }).click()
+  await expect(entry).toBeVisible()
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(panel).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await panel.getByRole('button', { name: 'Activity', exact: true }).click()
+  await expect(panel.getByRole('heading', { name: 'Learning activity', exact: true })).toBeVisible()
+  await expect(panel.getByRole('button', { name: 'Pause extraction', exact: true })).toBeVisible()
+  await page.screenshot({ path: info.outputPath('memory-sidebar-mobile.png') })
+}
